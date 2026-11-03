@@ -1,12 +1,23 @@
 import { InstagramAccount } from '@/types';
+import { getOptionalRequestContext } from '@cloudflare/next-on-pages';
 
 const GRAPH_API_VERSION = 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 export function getMetaConfig() {
-  const appId = process.env.META_APP_ID || '';
-  const appSecret = process.env.META_APP_SECRET || '';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  let cfEnv: Record<string, any> = {};
+  try {
+    const ctx = getOptionalRequestContext();
+    if (ctx && ctx.env) {
+      cfEnv = ctx.env as Record<string, any>;
+    }
+  } catch {
+    // fallback outside cloudflare context
+  }
+
+  const appId = (cfEnv.META_APP_ID || process.env.META_APP_ID || cfEnv.NEXT_PUBLIC_META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || '') as string;
+  const appSecret = (cfEnv.META_APP_SECRET || process.env.META_APP_SECRET || '') as string;
+  const appUrl = (cfEnv.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://unframe-7hl.pages.dev') as string;
 
   return {
     appId,
