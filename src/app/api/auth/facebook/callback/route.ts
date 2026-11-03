@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForUserToken, fetchInstagramAccounts, getLongLivedUserToken } from '@/lib/meta';
 
+export const runtime = 'edge';
+
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const code = searchParams.get('code');

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+
+export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,24 +13,15 @@ export async function POST(req: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const base64 = buffer.toString('base64');
+    const mime = file.type || 'image/jpeg';
+    const fallbackDataUrl = `data:${mime};base64,${base64}`;
 
-    // Ensure public/uploads exists
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    await mkdir(uploadsDir, { recursive: true });
+    let publicUrl = fallbackDataUrl;
+    const filename = `slide-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${mime.split('/')[1] || 'jpg'}`;
 
-    // Clean filename
-    const ext = path.extname(file.name) || '.jpg';
-    const filename = `slide-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
-    const filePath = path.join(uploadsDir, filename);
-
-    await writeFile(filePath, buffer);
-
-    const localUrl = `/uploads/${filename}`;
-    let publicUrl = localUrl;
-
-    // Upload to public CDN so Meta Instagram crawler can reach it from localhost
+    // Upload to public CDN so Meta Instagram crawler can reach it
     try {
-      const base64 = buffer.toString('base64');
       const cdnFormData = new FormData();
       cdnFormData.append('key', '6d207e02198a847aa98d0a2a901485a5');
       cdnFormData.append('action', 'upload');
@@ -49,13 +40,13 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (e) {
-      console.warn('CDN upload fallback to local URL:', e);
+      console.warn('CDN upload fallback to data URL:', e);
     }
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      localUrl,
+      localUrl: publicUrl,
       filename,
     });
   } catch (error: unknown) {
@@ -63,4 +54,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

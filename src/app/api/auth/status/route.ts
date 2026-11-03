@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getMetaConfig } from '@/lib/meta';
 import { InstagramAccount } from '@/types';
 
+export const runtime = 'edge';
+
 export async function GET(req: NextRequest) {
   const { isConfigured, appId } = getMetaConfig();
   const sessionCookie = req.cookies.get('ig_accounts_session');

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateMetaOAuthUrl, getMetaConfig } from '@/lib/meta';
 
+export const runtime = 'edge';
+
 export async function GET(req: NextRequest) {
   const { isConfigured, appUrl } = getMetaConfig();
 
