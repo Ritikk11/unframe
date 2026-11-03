@@ -34,8 +34,7 @@ export function generateMetaOAuthUrl(redirectUri: string, state: string = 'auth_
     'pages_show_list',
     'pages_read_engagement',
     'instagram_basic',
-    'instagram_content_publish',
-    'business_management'
+    'instagram_content_publish'
   ].join(',');
 
   const params = new URLSearchParams({
