@@ -7,3 +7,4 @@ interface CloudflareEnv {
   NEXT_PUBLIC_META_APP_ID?: string;
   [key: string]: any;
 }
+

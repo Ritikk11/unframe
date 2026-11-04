@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
     }
 
     const bytes = await file.arrayBuffer();
-    const mime = file.type || 'image/jpeg';
-    const ext = mime.split('/')[1]?.replace('+xml', '') || 'jpg';
+    const mime = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
+    const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : (mime.split('/')[1]?.replace('+xml', '') || 'jpg');
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
     const filename = `unframe-${Date.now()}.${ext}`;
 

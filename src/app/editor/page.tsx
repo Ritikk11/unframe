@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import PhonePreviewModal from '@/components/PhonePreviewModal';
 import { SlideItem, InstagramAccount } from '@/types';
-import { getImageDimensions } from '@/lib/image-utils';
+import { getImageDimensions, convertToOriginalJpeg } from '@/lib/image-utils';
 import {
   Plus,
   X,
@@ -293,8 +293,11 @@ function EditorContent() {
             fileToUpload = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
           }
 
+          // Convert to pure standard JPEG with exact original dimensions (no cropping, no aspect changes)
+          const jpegFile = await convertToOriginalJpeg(fileToUpload);
+
           const formData = new FormData();
-          formData.append('file', fileToUpload);
+          formData.append('file', jpegFile);
           const uploadRes = await fetch('/api/upload', {
             method: 'POST',
             body: formData,
