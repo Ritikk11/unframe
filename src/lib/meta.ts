@@ -89,7 +89,7 @@ export async function getLongLivedUserToken(shortLivedToken: string): Promise<st
 }
 
 export async function fetchInstagramAccounts(userAccessToken: string): Promise<{ accounts: InstagramAccount[]; pagesFound: string[] }> {
-  const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}';
+  const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count},connected_instagram_account{id,username,name,profile_picture_url}';
   const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${userAccessToken}`);
   const data = await res.json();
 
@@ -102,14 +102,14 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<{
   const pagesFound: string[] = pages.map((p: any) => p.name || p.id);
 
   for (const page of pages) {
-    if (page.instagram_business_account) {
-      const ig = page.instagram_business_account;
+    const ig = page.instagram_business_account || page.connected_instagram_account;
+    if (ig) {
       accounts.push({
         id: ig.id,
-        username: ig.username,
+        username: ig.username || page.name,
         name: ig.name || page.name,
         profilePictureUrl: ig.profile_picture_url,
-        followersCount: ig.followers_count,
+        followersCount: ig.followers_count || 0,
         pageId: page.id,
         pageName: page.name,
         pageAccessToken: page.access_token,
