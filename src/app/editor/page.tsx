@@ -285,21 +285,38 @@ function EditorContent() {
       const finalImageUrls: string[] = [];
 
       for (const slide of slides) {
-        if (slide.file) {
+        if (slide.file || (slide.previewUrl && slide.previewUrl.startsWith('blob:'))) {
+          let fileToUpload = slide.file;
+          if (!fileToUpload) {
+            const blobRes = await fetch(slide.previewUrl);
+            const blob = await blobRes.blob();
+            fileToUpload = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
+          }
+
           const formData = new FormData();
-          formData.append('file', slide.file);
+          formData.append('file', fileToUpload);
           const uploadRes = await fetch('/api/upload', {
             method: 'POST',
             body: formData,
           });
-          const uploadData = await uploadRes.json();
-          if (!uploadRes.ok) throw new Error(uploadData.error || 'Failed to upload photo');
-          const imageUrl = uploadData.url.startsWith('http')
-            ? uploadData.url
-            : `${window.location.origin}${uploadData.url}`;
-          finalImageUrls.push(imageUrl);
+
+          let uploadData: any = {};
+          try {
+            uploadData = await uploadRes.json();
+          } catch {
+            throw new Error(`Upload server error (${uploadRes.status}). Please try again.`);
+          }
+
+          if (!uploadRes.ok || !uploadData.url || !uploadData.url.startsWith('http')) {
+            throw new Error(uploadData.error || 'Failed to upload photo to public CDN for Instagram.');
+          }
+
+          finalImageUrls.push(uploadData.url);
         } else {
           // Direct Image URL
+          if (!slide.previewUrl.startsWith('http')) {
+            throw new Error('Invalid image URL: Instagram requires a public https:// URL.');
+          }
           finalImageUrls.push(slide.previewUrl);
         }
       }
@@ -315,7 +332,13 @@ function EditorContent() {
         }),
       });
 
-      const resData = await publishRes.json();
+      let resData: any = {};
+      try {
+        resData = await publishRes.json();
+      } catch {
+        throw new Error(`Publish server returned an invalid response (HTTP ${publishRes.status}). Please try again.`);
+      }
+
       if (!publishRes.ok) {
         throw new Error(resData.error || 'Failed to publish post');
       }

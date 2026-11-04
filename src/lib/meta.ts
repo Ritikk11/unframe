@@ -154,8 +154,10 @@ export async function createSingleMediaContainer(
     access_token: accessToken,
   });
 
-  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media?${params.toString()}`, {
+  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
   });
   const data = await res.json();
 
@@ -177,8 +179,10 @@ export async function createCarouselItemContainer(
     access_token: accessToken,
   });
 
-  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media?${params.toString()}`, {
+  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
   });
   const data = await res.json();
 
@@ -202,8 +206,10 @@ export async function createCarouselParentContainer(
     access_token: accessToken,
   });
 
-  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media?${params.toString()}`, {
+  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
   });
   const data = await res.json();
 
@@ -233,13 +239,15 @@ export async function publishContainer(
     access_token: accessToken,
   });
 
-  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media_publish?${params.toString()}`, {
+  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media_publish`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
   });
   const data = await res.json();
 
   if (data.error) {
-    throw new Error(data.error.message || 'Failed to publish carousel to Instagram');
+    throw new Error(data.error.message || 'Failed to publish post to Instagram');
   }
 
   return data;

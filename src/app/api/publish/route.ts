@@ -61,18 +61,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Wait for container to be ready (up to 20 seconds)
-    for (let attempt = 0; attempt < 20; attempt++) {
+    // Wait for container to be ready (up to 15 seconds)
+    // For single images, Instagram creates containers synchronously and status_code is FINISHED or omitted
+    for (let attempt = 0; attempt < 15; attempt++) {
       try {
         const status = await checkMediaContainerStatus(creationIdToPublish, accessToken);
-        if (status.status_code === 'FINISHED') {
+        if (!status?.status_code || status.status_code === 'FINISHED') {
           break;
         }
         if (status.status_code === 'ERROR') {
           throw new Error('Instagram failed to process media container.');
         }
       } catch (err) {
-        // If status endpoint errors or still in progress, continue waiting
+        // If status endpoint errors or still in progress, continue waiting briefly
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Publish failed';
+    console.error('API /publish error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -12,20 +12,19 @@ export async function POST(req: NextRequest) {
     }
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
     const mime = file.type || 'image/jpeg';
-    const fallbackDataUrl = `data:${mime};base64,${base64}`;
+    const ext = mime.split('/')[1]?.replace('+xml', '') || 'jpg';
+    const filename = `unframe-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+    const blob = new Blob([bytes], { type: mime });
 
-    let publicUrl = fallbackDataUrl;
-    const filename = `slide-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${mime.split('/')[1] || 'jpg'}`;
+    let publicUrl = '';
 
-    // Upload to public CDN so Meta Instagram crawler can reach it
+    // 1. Primary: Upload directly to FreeImage CDN (returns direct https://iili.io/... URL)
     try {
       const cdnFormData = new FormData();
       cdnFormData.append('key', '6d207e02198a847aa98d0a2a901485a5');
       cdnFormData.append('action', 'upload');
-      cdnFormData.append('source', base64);
+      cdnFormData.append('source', blob, filename);
       cdnFormData.append('format', 'json');
 
       const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
@@ -34,19 +33,47 @@ export async function POST(req: NextRequest) {
       });
 
       if (cdnRes.ok) {
-        const cdnData = await cdnRes.json();
-        if (cdnData?.image?.url) {
+        const cdnData: any = await cdnRes.json();
+        if (cdnData?.image?.url && typeof cdnData.image.url === 'string') {
           publicUrl = cdnData.image.url;
         }
       }
     } catch (e) {
-      console.warn('CDN upload fallback to data URL:', e);
+      console.warn('FreeImage CDN upload error:', e);
+    }
+
+    // 2. Secondary fallback: tmpfiles.org
+    if (!publicUrl || !publicUrl.startsWith('http')) {
+      try {
+        const tmpFormData = new FormData();
+        tmpFormData.append('file', blob, filename);
+
+        const tmpRes = await fetch('https://tmpfiles.org/api/v1/upload', {
+          method: 'POST',
+          body: tmpFormData,
+        });
+
+        if (tmpRes.ok) {
+          const tmpData: any = await tmpRes.json();
+          if (tmpData?.data?.url) {
+            publicUrl = tmpData.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
+          }
+        }
+      } catch (e) {
+        console.warn('Tmpfiles upload fallback error:', e);
+      }
+    }
+
+    if (!publicUrl || !publicUrl.startsWith('http')) {
+      return NextResponse.json(
+        { error: 'Could not upload photo to public CDN. Instagram requires a publicly accessible HTTPS image URL to publish.' },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      localUrl: publicUrl,
       filename,
     });
   } catch (error: unknown) {
