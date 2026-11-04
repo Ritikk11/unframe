@@ -1,19 +1,38 @@
 import { stripAiAndInjectRealMetadata } from '@/lib/metadata-cleaner';
 
 export interface PhotographicAdjustments {
-  brightness: number; // -30 to +30 (default: 12)
-  contrast: number;   // -10 to +35 (default: 15)
-  highlights: number; // -25 to +30 (default: 10)
-  warmth: number;     // -30 (cool) to +30 (warm), default: 0 (neutral)
-  borderCrop: number; // 0 to 5% (default: 2.5%, cuts corner border lines)
+  // Tone & Exposure
+  exposure: number;    // -50 to +50 (default: 0)
+  brightness: number;  // -30 to +30 (default: 8)
+  contrast: number;    // -20 to +40 (default: 12)
+  highlights: number;  // -30 to +30 (default: 6)
+
+  // White Balance & Color
+  warmth: number;      // -50 (cool) to +50 (warm), default: 0 (neutral)
+  tint: number;        // -50 (green) to +50 (magenta), default: 0
+  saturation: number;  // -50 (muted) to +50 (vibrant), default: 0
+
+  // Optics & Texture
+  sharpness: number;   // 0 to 50 (default: 10)
+  smooth: number;      // 0 to 50 (default: 0)
+  grain: number;       // 0 to 50 (default: 12)
+
+  // Boundary & Targeting
+  borderCrop: number;  // 0 to 5% (default: 2.5%, cuts edge padding lines)
   targetHotspots: boolean; // concentrates adjustments on detected AI zones
 }
 
 export const DEFAULT_ADJUSTMENTS: PhotographicAdjustments = {
-  brightness: 12,
-  contrast: 15,
-  highlights: 10,
+  exposure: 0,
+  brightness: 8,
+  contrast: 12,
+  highlights: 6,
   warmth: 0,
+  tint: 0,
+  saturation: 0,
+  sharpness: 10,
+  smooth: 0,
+  grain: 12,
   borderCrop: 2.5,
   targetHotspots: true,
 };
@@ -65,12 +84,14 @@ export function getImageDimensions(src: string): Promise<ImageMetadata> {
 }
 
 /**
- * Heatmap-Targeted Photographic Tone & Sensor Response Engine:
- * - Content-aware luminance evaluation.
- * - If targetHotspots is enabled, computes a local variance risk map and weights
- *   adjustments heavily on flat diffusion areas while preserving crisp textures.
- * - Supports arbitrary brightness, contrast, highlights, warmth (-30 cool to +30 warm).
- * - Applies soft optical highlight roll-off and film black point lift.
+ * Heatmap-Targeted Photographic Tone, Optics & Sensor Response Engine:
+ * - Content-aware luminance evaluation & local variance risk mapping.
+ * - Targeted adjustments concentrated on detected flat AI diffusion areas.
+ * - Full photographic controls: Exposure, Brightness, Contrast, Highlights.
+ * - True White Balance: Warmth (Temp) and Tint (Green/Magenta).
+ * - Saturation & Vibrance control.
+ * - Texture & Optics: Film Grain (sensor shot noise), Sharpness (clarity), Smooth (softening).
+ * - Highlight roll-off & film black point preservation.
  */
 export function applyPhotographicTone(
   ctx: CanvasRenderingContext2D,
@@ -79,11 +100,17 @@ export function applyPhotographicTone(
   adjustments: PhotographicAdjustments = DEFAULT_ADJUSTMENTS
 ): void {
   const {
-    brightness,
-    contrast,
-    highlights,
-    warmth,
-    targetHotspots,
+    exposure = 0,
+    brightness = 8,
+    contrast = 12,
+    highlights = 6,
+    warmth = 0,
+    tint = 0,
+    saturation = 0,
+    sharpness = 10,
+    smooth = 0,
+    grain = 12,
+    targetHotspots = true,
   } = adjustments;
 
   const imgData = ctx.getImageData(0, 0, width, height);
@@ -131,62 +158,135 @@ export function applyPhotographicTone(
   }
 
   const contrastK = 1.0 + (contrast / 100.0);
+  const expScale = 1.0 + (exposure / 100.0);
+  const satScale = 1.0 + (saturation / 100.0);
 
-  for (let i = 0; i < totalPixels; i++) {
-    const pIdx = i * 4;
-    let r = data[pIdx];
-    let g = data[pIdx + 1];
-    let b = data[pIdx + 2];
+  for (let y = 0; y < height; y++) {
+    const yOffset = y * width;
+    const upOffset = Math.max(0, y - 1) * width;
+    const downOffset = Math.min(height - 1, y + 1) * width;
 
-    const l = lum[i];
-    const normLum = l / 255.0;
+    for (let x = 0; x < width; x++) {
+      const i = yOffset + x;
+      const pIdx = i * 4;
+      let r = data[pIdx];
+      let g = data[pIdx + 1];
+      let b = data[pIdx + 2];
 
-    // Weight factor: If targetHotspots is on, concentrate adjustments on flat AI zones
-    const weight = targetHotspots ? (0.35 + 0.65 * riskMap[i]) : 1.0;
+      const l = lum[i];
+      const normLum = l / 255.0;
 
-    // A. Film black point lift
-    const shadowFactor = Math.max(0, 1.0 - normLum * 3.0);
-    const sLift = 5.0 * shadowFactor * weight;
-    r += sLift;
-    g += sLift;
-    b += sLift;
+      // Weight factor: If targetHotspots is on, concentrate adjustments on flat AI zones
+      const weight = targetHotspots ? (0.35 + 0.65 * riskMap[i]) : 1.0;
 
-    // B. Contrast expansion around midpoint 118
-    const effContrast = 1.0 + (contrastK - 1.0) * weight;
-    r = (r - 118) * effContrast + 118;
-    g = (g - 118) * effContrast + 118;
-    b = (b - 118) * effContrast + 118;
+      // A. Sharpness & Optical Smooth
+      if (sharpness > 0 || smooth > 0) {
+        const leftX = Math.max(0, x - 1);
+        const rightX = Math.min(width - 1, x + 1);
+        const neighborAvg = (lum[upOffset + x] + lum[downOffset + x] + lum[yOffset + leftX] + lum[yOffset + rightX]) * 0.25;
 
-    // C. Midtone & highlight lift
-    const midLift = Math.sin(normLum * Math.PI) * (brightness * weight);
-    const highLift = Math.pow(normLum, 1.5) * (highlights * weight);
-    r += midLift + highLift;
-    g += midLift + highLift;
-    b += midLift + highLift;
+        if (sharpness > 0) {
+          const edgeDelta = (l - neighborAvg) * (sharpness / 50.0);
+          r += edgeDelta;
+          g += edgeDelta;
+          b += edgeDelta;
+        }
 
-    // D. Temperature / Warmth slider (-30 cool to +30 warm, 0 neutral)
-    if (warmth > 0) {
-      // Warm amber / golden
-      const wFactor = Math.pow(normLum, 1.3) * (warmth * 0.45 * weight);
-      r += wFactor;
-      g += wFactor * 0.3;
-      b -= wFactor * 0.2;
-    } else if (warmth < 0) {
-      // Cool cyan / blue
-      const cFactor = Math.pow(normLum, 1.2) * (Math.abs(warmth) * 0.4 * weight);
-      b += cFactor;
-      g += cFactor * 0.2;
-      r -= cFactor * 0.3;
+        if (smooth > 0) {
+          const smoothDelta = (neighborAvg - l) * (smooth / 100.0) * weight;
+          r += smoothDelta;
+          g += smoothDelta;
+          b += smoothDelta;
+        }
+      }
+
+      // B. Exposure EV adjustment
+      if (exposure !== 0) {
+        const effExp = 1.0 + (expScale - 1.0) * weight;
+        r *= effExp;
+        g *= effExp;
+        b *= effExp;
+      }
+
+      // C. Film black point lift
+      const shadowFactor = Math.max(0, 1.0 - normLum * 3.0);
+      const sLift = 5.0 * shadowFactor * weight;
+      r += sLift;
+      g += sLift;
+      b += sLift;
+
+      // D. Contrast expansion around midpoint 118
+      const effContrast = 1.0 + (contrastK - 1.0) * weight;
+      r = (r - 118) * effContrast + 118;
+      g = (g - 118) * effContrast + 118;
+      b = (b - 118) * effContrast + 118;
+
+      // E. Midtone Brightness & Highlight lift
+      const midLift = Math.sin(normLum * Math.PI) * (brightness * weight);
+      const highLift = Math.pow(normLum, 1.5) * (highlights * weight);
+      r += midLift + highLift;
+      g += midLift + highLift;
+      b += midLift + highLift;
+
+      // F. White Balance: Warmth (Temperature)
+      if (warmth > 0) {
+        // Warm golden amber
+        const wFactor = Math.pow(normLum, 1.3) * (warmth * 0.45 * weight);
+        r += wFactor;
+        g += wFactor * 0.3;
+        b -= wFactor * 0.25;
+      } else if (warmth < 0) {
+        // Cool cyan / blue
+        const cFactor = Math.pow(normLum, 1.2) * (Math.abs(warmth) * 0.45 * weight);
+        b += cFactor;
+        g += cFactor * 0.2;
+        r -= cFactor * 0.3;
+      }
+
+      // G. White Balance: Tint (Green <-> Magenta)
+      if (tint > 0) {
+        // Magenta
+        const mFactor = (tint * 0.35 * weight);
+        r += mFactor;
+        b += mFactor * 0.75;
+        g -= mFactor * 0.85;
+      } else if (tint < 0) {
+        // Green
+        const gFactor = (Math.abs(tint) * 0.35 * weight);
+        g += gFactor;
+        r -= gFactor * 0.5;
+        b -= gFactor * 0.5;
+      }
+
+      // H. Saturation & Vibrance
+      if (saturation !== 0) {
+        const curLum = 0.299 * r + 0.587 * g + 0.114 * b;
+        const effSat = 1.0 + (satScale - 1.0) * weight;
+        r = curLum + (r - curLum) * effSat;
+        g = curLum + (g - curLum) * effSat;
+        b = curLum + (b - curLum) * effSat;
+      }
+
+      // I. Film Grain (Photographic Sensor Shot Noise)
+      // Destroys synthetic flat diffusion uniformity (stdDev < 16)
+      if (grain > 0) {
+        const grainIntensity = (grain / 100.0) * (1.2 - normLum * 0.5) * (targetHotspots ? (0.4 + 0.6 * riskMap[i]) : 1.0);
+        // Fast deterministic PRNG for organic grain distribution
+        const noise = (((Math.sin(i * 12.9898 + 78.233) * 43758.5453) % 1) * 2 - 1) * grainIntensity * 26.0;
+        r += noise;
+        g += noise;
+        b += noise;
+      }
+
+      // J. Soft optical highlight compression (prevents digital clipping)
+      if (r > 240) r = 240 + (r - 240) * 0.45;
+      if (g > 240) g = 240 + (g - 240) * 0.45;
+      if (b > 240) b = 240 + (b - 240) * 0.45;
+
+      data[pIdx] = Math.min(253, Math.max(0, Math.round(r)));
+      data[pIdx + 1] = Math.min(253, Math.max(0, Math.round(g)));
+      data[pIdx + 2] = Math.min(253, Math.max(0, Math.round(b)));
     }
-
-    // E. Soft optical highlight compression (prevents harsh 255 digital clipping)
-    if (r > 240) r = 240 + (r - 240) * 0.45;
-    if (g > 240) g = 240 + (g - 240) * 0.45;
-    if (b > 240) b = 240 + (b - 240) * 0.45;
-
-    data[pIdx] = Math.min(253, Math.max(0, Math.round(r)));
-    data[pIdx + 1] = Math.min(253, Math.max(0, Math.round(g)));
-    data[pIdx + 2] = Math.min(253, Math.max(0, Math.round(b)));
   }
 
   ctx.putImageData(imgData, 0, 0);

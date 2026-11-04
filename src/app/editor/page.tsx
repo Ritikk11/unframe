@@ -836,27 +836,37 @@ function EditorContent() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       {
                         name: '🎯 Neutral Shield',
-                        desc: '0 warmth, true-to-life colors',
-                        vals: { brightness: 12, contrast: 15, highlights: 10, warmth: 0, borderCrop: 2.5, targetHotspots: true },
+                        desc: 'True-to-life colors, subtle grain',
+                        vals: { exposure: 0, brightness: 8, contrast: 12, highlights: 6, warmth: 0, tint: 0, saturation: 0, sharpness: 10, smooth: 0, grain: 12, borderCrop: 2.5, targetHotspots: true },
                       },
                       {
                         name: '❄️ Cool Studio',
-                        desc: 'Clean whites, cool tones',
-                        vals: { brightness: 10, contrast: 16, highlights: 12, warmth: -16, borderCrop: 2.5, targetHotspots: true },
+                        desc: 'Clean cool tone, crisp edges',
+                        vals: { exposure: 0, brightness: 10, contrast: 15, highlights: 8, warmth: -20, tint: -6, saturation: 4, sharpness: 15, smooth: 0, grain: 10, borderCrop: 2.5, targetHotspots: true },
                       },
                       {
                         name: '☀️ Warm Portra',
-                        desc: 'Golden glow, warm highlights',
-                        vals: { brightness: 14, contrast: 14, highlights: 12, warmth: 16, borderCrop: 2.5, targetHotspots: true },
+                        desc: 'Golden amber, soft glow',
+                        vals: { exposure: 0, brightness: 10, contrast: 14, highlights: 8, warmth: 20, tint: 8, saturation: 6, sharpness: 10, smooth: 0, grain: 12, borderCrop: 2.5, targetHotspots: true },
+                      },
+                      {
+                        name: '🎞️ 35mm Analog',
+                        desc: 'Film grain, organic texture',
+                        vals: { exposure: 0, brightness: 6, contrast: 20, highlights: -6, warmth: 8, tint: 4, saturation: -5, sharpness: 14, smooth: 0, grain: 26, borderCrop: 2.5, targetHotspots: true },
+                      },
+                      {
+                        name: '✨ Soft Portrait',
+                        desc: 'Skin smoothing, dreamy light',
+                        vals: { exposure: 2, brightness: 12, contrast: 8, highlights: 10, warmth: 6, tint: 4, saturation: 5, sharpness: 6, smooth: 22, grain: 8, borderCrop: 2.5, targetHotspots: true },
                       },
                       {
                         name: '⚙️ Zero (Raw)',
-                        desc: 'No tone shift, EXIF only',
-                        vals: { brightness: 0, contrast: 0, highlights: 0, warmth: 0, borderCrop: 0, targetHotspots: false },
+                        desc: '100% untouched pixels, EXIF only',
+                        vals: { exposure: 0, brightness: 0, contrast: 0, highlights: 0, warmth: 0, tint: 0, saturation: 0, sharpness: 0, smooth: 0, grain: 0, borderCrop: 0, targetHotspots: false },
                       },
                     ].map((p, idx) => (
                       <button
@@ -872,105 +882,230 @@ function EditorContent() {
                   </div>
 
                   {/* Sliders Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-black/40 border border-white/10">
-                    {/* Brightness */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-300 font-medium">☀️ Brightness</span>
-                        <span className="font-mono text-emerald-400 font-bold">{adjustments.brightness > 0 ? `+${adjustments.brightness}` : adjustments.brightness}</span>
+                  <div className="flex flex-col gap-3 p-3.5 rounded-2xl bg-black/40 border border-white/10">
+                    {/* Category: Exposure & Tone */}
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#00D2FF]">1. Exposure & Dynamic Range</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Exposure */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">☀️ Exposure</span>
+                            <span className="font-mono text-emerald-400 font-bold">{adjustments.exposure > 0 ? `+${adjustments.exposure}` : adjustments.exposure}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-40"
+                            max="40"
+                            value={adjustments.exposure}
+                            onChange={(e) => setAdjustments({ ...adjustments, exposure: Number(e.target.value) })}
+                            className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Contrast */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🌓 Contrast</span>
+                            <span className="font-mono text-emerald-400 font-bold">{adjustments.contrast > 0 ? `+${adjustments.contrast}` : adjustments.contrast}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-20"
+                            max="40"
+                            value={adjustments.contrast}
+                            onChange={(e) => setAdjustments({ ...adjustments, contrast: Number(e.target.value) })}
+                            className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Brightness */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">💡 Brightness (Midtones)</span>
+                            <span className="font-mono text-emerald-400 font-bold">{adjustments.brightness > 0 ? `+${adjustments.brightness}` : adjustments.brightness}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-30"
+                            max="30"
+                            value={adjustments.brightness}
+                            onChange={(e) => setAdjustments({ ...adjustments, brightness: Number(e.target.value) })}
+                            className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Highlights */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">✨ Highlights</span>
+                            <span className="font-mono text-emerald-400 font-bold">{adjustments.highlights > 0 ? `+${adjustments.highlights}` : adjustments.highlights}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-30"
+                            max="30"
+                            value={adjustments.highlights}
+                            onChange={(e) => setAdjustments({ ...adjustments, highlights: Number(e.target.value) })}
+                            className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min="-25"
-                        max="25"
-                        value={adjustments.brightness}
-                        onChange={(e) => setAdjustments({ ...adjustments, brightness: Number(e.target.value) })}
-                        className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-                      />
                     </div>
 
-                    {/* Contrast */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-300 font-medium">🌓 Contrast</span>
-                        <span className="font-mono text-emerald-400 font-bold">{adjustments.contrast > 0 ? `+${adjustments.contrast}` : adjustments.contrast}</span>
+                    <div className="h-px bg-white/10 my-0.5" />
+
+                    {/* Category: White Balance & Color */}
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">2. White Balance & Color</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Temperature / Warmth */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🌡️ Warmth (Temp)</span>
+                            <span className={`font-mono font-bold ${adjustments.warmth > 0 ? 'text-amber-400' : adjustments.warmth < 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
+                              {adjustments.warmth > 0 ? `+${adjustments.warmth}` : adjustments.warmth < 0 ? `${adjustments.warmth}` : '0'}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-40"
+                            max="40"
+                            value={adjustments.warmth}
+                            onChange={(e) => setAdjustments({ ...adjustments, warmth: Number(e.target.value) })}
+                            className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Tint (Green to Magenta) */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🎨 Tint (Grn/Mag)</span>
+                            <span className={`font-mono font-bold ${adjustments.tint > 0 ? 'text-fuchsia-400' : adjustments.tint < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                              {adjustments.tint > 0 ? `+${adjustments.tint}` : adjustments.tint < 0 ? `${adjustments.tint}` : '0'}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-40"
+                            max="40"
+                            value={adjustments.tint}
+                            onChange={(e) => setAdjustments({ ...adjustments, tint: Number(e.target.value) })}
+                            className="w-full accent-fuchsia-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Saturation */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🌈 Saturation</span>
+                            <span className="font-mono text-emerald-400 font-bold">{adjustments.saturation > 0 ? `+${adjustments.saturation}` : adjustments.saturation}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-40"
+                            max="40"
+                            value={adjustments.saturation}
+                            onChange={(e) => setAdjustments({ ...adjustments, saturation: Number(e.target.value) })}
+                            className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min="-10"
-                        max="35"
-                        value={adjustments.contrast}
-                        onChange={(e) => setAdjustments({ ...adjustments, contrast: Number(e.target.value) })}
-                        className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-                      />
                     </div>
 
-                    {/* Highlights */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-300 font-medium">✨ Highlights</span>
-                        <span className="font-mono text-emerald-400 font-bold">{adjustments.highlights > 0 ? `+${adjustments.highlights}` : adjustments.highlights}</span>
+                    <div className="h-px bg-white/10 my-0.5" />
+
+                    {/* Category: Texture & Optics */}
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-purple-400">3. Texture, Optics & Film Grain</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Film Grain */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🎞️ Film Grain (Shot Noise)</span>
+                            <span className="font-mono text-purple-400 font-bold">{adjustments.grain}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="50"
+                            value={adjustments.grain}
+                            onChange={(e) => setAdjustments({ ...adjustments, grain: Number(e.target.value) })}
+                            className="w-full accent-purple-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Sharpness */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🔍 Sharpness (Clarity)</span>
+                            <span className="font-mono text-purple-400 font-bold">{adjustments.sharpness}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="50"
+                            value={adjustments.sharpness}
+                            onChange={(e) => setAdjustments({ ...adjustments, sharpness: Number(e.target.value) })}
+                            className="w-full accent-purple-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Smooth */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-300 font-medium">🌸 Smooth (Softening)</span>
+                            <span className="font-mono text-purple-400 font-bold">{adjustments.smooth}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="50"
+                            value={adjustments.smooth}
+                            onChange={(e) => setAdjustments({ ...adjustments, smooth: Number(e.target.value) })}
+                            className="w-full accent-purple-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min="-20"
-                        max="30"
-                        value={adjustments.highlights}
-                        onChange={(e) => setAdjustments({ ...adjustments, highlights: Number(e.target.value) })}
-                        className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-                      />
                     </div>
 
-                    {/* Temperature / Warmth (Cool to Warm) */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-300 font-medium">🌡️ Temperature</span>
-                        <span className={`font-mono font-bold ${adjustments.warmth > 0 ? 'text-amber-400' : adjustments.warmth < 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
-                          {adjustments.warmth > 0 ? `+${adjustments.warmth} (Warm)` : adjustments.warmth < 0 ? `${adjustments.warmth} (Cool)` : '0 (Neutral)'}
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min="-25"
-                        max="25"
-                        value={adjustments.warmth}
-                        onChange={(e) => setAdjustments({ ...adjustments, warmth: Number(e.target.value) })}
-                        className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-                      />
-                    </div>
+                    <div className="h-px bg-white/10 my-0.5" />
 
-                    {/* Border Edge Trim */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-300 font-medium">✂️ Border Edge Trim (Corner lines)</span>
-                        <span className="font-mono text-emerald-400 font-bold">{adjustments.borderCrop}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="5"
-                        step="0.5"
-                        value={adjustments.borderCrop}
-                        onChange={(e) => setAdjustments({ ...adjustments, borderCrop: Number(e.target.value) })}
-                        className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-                      />
-                    </div>
-
-                    {/* Target AI Hotspots Toggle */}
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/5">
-                      <div>
-                        <span className="text-[12px] font-bold text-white block">🎯 Target AI Hotspots Only</span>
-                        <span className="text-[10px] text-slate-400 block">Concentrates adjustments on detected flat diffusion areas</span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    {/* Category: Perimeter & AI Targeting */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {/* Border Edge Trim */}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-slate-300 font-medium">✂️ Border Edge Trim (Corner lines)</span>
+                          <span className="font-mono text-emerald-400 font-bold">{adjustments.borderCrop}%</span>
+                        </div>
                         <input
-                          type="checkbox"
-                          checked={adjustments.targetHotspots}
-                          onChange={(e) => setAdjustments({ ...adjustments, targetHotspots: e.target.checked })}
-                          className="sr-only peer"
+                          type="range"
+                          min="0"
+                          max="5"
+                          step="0.5"
+                          value={adjustments.borderCrop}
+                          onChange={(e) => setAdjustments({ ...adjustments, borderCrop: Number(e.target.value) })}
+                          className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
                         />
-                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                      </label>
+                      </div>
+
+                      {/* Target AI Hotspots Toggle */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/5">
+                        <div>
+                          <span className="text-[12px] font-bold text-white block">🎯 Target AI Hotspots Only</span>
+                          <span className="text-[10px] text-slate-400 block">Focuses adjustments specifically on detected flat diffusion areas</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={adjustments.targetHotspots}
+                            onChange={(e) => setAdjustments({ ...adjustments, targetHotspots: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -1190,13 +1325,23 @@ function EditorContent() {
                                   className="w-full h-full object-cover transition-all duration-300"
                                   style={{
                                     filter: metaShieldEnabled
-                                      ? `brightness(${1 + adjustments.brightness / 120}) contrast(${1 + adjustments.contrast / 100}) ${
+                                      ? `brightness(${Math.max(0.2, 1 + (adjustments.brightness + adjustments.exposure * 0.8) / 100)}) contrast(${Math.max(0.3, 1 + adjustments.contrast / 100)}) saturate(${Math.max(0.1, 1 + adjustments.saturation / 100)}) ${
                                           adjustments.warmth > 0
                                             ? `sepia(${adjustments.warmth * 0.4}%) hue-rotate(-${adjustments.warmth * 0.3}deg)`
                                             : adjustments.warmth < 0
-                                            ? `hue-rotate(${Math.abs(adjustments.warmth) * 0.5}deg) saturate(${1 + Math.abs(adjustments.warmth) * 0.005})`
+                                            ? `hue-rotate(${Math.abs(adjustments.warmth) * 0.45}deg)`
                                             : ''
-                                        }`
+                                        } ${
+                                          adjustments.tint > 0
+                                            ? `hue-rotate(${adjustments.tint * 0.35}deg)`
+                                            : adjustments.tint < 0
+                                            ? `hue-rotate(-${Math.abs(adjustments.tint) * 0.35}deg)`
+                                            : ''
+                                        } ${
+                                          adjustments.smooth > 0
+                                            ? `blur(${adjustments.smooth * 0.015}px)`
+                                            : ''
+                                        }`.trim()
                                       : 'none',
                                     transform: metaShieldEnabled && adjustments.borderCrop > 0
                                       ? `scale(${1 + (adjustments.borderCrop * 2) / 100})`
