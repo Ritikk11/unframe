@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -15,16 +26,16 @@ export async function POST(req: NextRequest) {
     const mime = file.type || 'image/jpeg';
     const ext = mime.split('/')[1]?.replace('+xml', '') || 'jpg';
     const filename = `unframe-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
-    const blob = new Blob([bytes], { type: mime });
+    const base64 = arrayBufferToBase64(bytes);
 
     let publicUrl = '';
 
-    // 1. Primary: Upload directly to FreeImage CDN (returns direct https://iili.io/... URL)
+    // 1. Primary: Upload to FreeImage CDN via standard Base64 payload
     try {
       const cdnFormData = new FormData();
       cdnFormData.append('key', '6d207e02198a847aa98d0a2a901485a5');
       cdnFormData.append('action', 'upload');
-      cdnFormData.append('source', blob, filename);
+      cdnFormData.append('source', base64);
       cdnFormData.append('format', 'json');
 
       const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
@@ -42,9 +53,10 @@ export async function POST(req: NextRequest) {
       console.warn('FreeImage CDN upload error:', e);
     }
 
-    // 2. Secondary fallback: tmpfiles.org
+    // 2. Secondary fallback: tmpfiles.org via Blob
     if (!publicUrl || !publicUrl.startsWith('http')) {
       try {
+        const blob = new Blob([bytes], { type: mime });
         const tmpFormData = new FormData();
         tmpFormData.append('file', blob, filename);
 
