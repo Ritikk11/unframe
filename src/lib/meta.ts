@@ -245,8 +245,27 @@ export async function publishContainer(
   return data;
 }
 
+export async function fetchCarouselChildren(
+  mediaId: string,
+  accessToken: string
+): Promise<{ id: string; mediaType: string; mediaUrl: string }[]> {
+  const res = await fetch(
+    `${GRAPH_BASE}/${mediaId}/children?fields=id,media_type,media_url,thumbnail_url&access_token=${accessToken}`
+  );
+  const data = await res.json();
+  if (Array.isArray(data.data)) {
+    return data.data.map((c: any) => ({
+      id: c.id,
+      mediaType: c.media_type || 'IMAGE',
+      mediaUrl: c.media_url || c.thumbnail_url || '',
+    }));
+  }
+  return [];
+}
+
 export async function fetchAccountPosts(igUserId: string, accessToken: string): Promise<InstagramPost[]> {
-  const fields = 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,children{id,media_type,media_url}';
+  const fields =
+    'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,children{id,media_type,media_url,thumbnail_url}';
   const res = await fetch(`${GRAPH_BASE}/${igUserId}/media?fields=${fields}&access_token=${accessToken}&limit=30`);
   const data = await res.json();
 
@@ -255,21 +274,41 @@ export async function fetchAccountPosts(igUserId: string, accessToken: string): 
   }
 
   const items = data.data || [];
-  return items.map((item: any) => ({
-    id: item.id,
-    caption: item.caption || '',
-    mediaType: item.media_type,
-    mediaUrl: item.media_url || item.thumbnail_url || '',
-    thumbnailUrl: item.thumbnail_url || item.media_url || '',
-    permalink: item.permalink || '',
-    timestamp: item.timestamp || '',
-    likeCount: item.like_count || 0,
-    commentsCount: item.comments_count || 0,
-    children: item.children?.data?.map((c: any) => ({
-      id: c.id,
-      mediaType: c.media_type,
-      mediaUrl: c.media_url,
-    })) || [],
-  }));
+  const posts: InstagramPost[] = [];
+
+  for (const item of items) {
+    let children =
+      item.children?.data?.map((c: any) => ({
+        id: c.id,
+        mediaType: c.media_type || 'IMAGE',
+        mediaUrl: c.media_url || c.thumbnail_url || '',
+      })) || [];
+
+    // Fallback if carousel album children weren't included in batch
+    if (item.media_type === 'CAROUSEL_ALBUM' && children.length === 0) {
+      try {
+        children = await fetchCarouselChildren(item.id, accessToken);
+      } catch {
+        // fallback
+      }
+    }
+
+    const coverUrl = item.media_url || children[0]?.mediaUrl || item.thumbnail_url || '';
+
+    posts.push({
+      id: item.id,
+      caption: item.caption || '',
+      mediaType: item.media_type,
+      mediaUrl: coverUrl,
+      thumbnailUrl: item.thumbnail_url || coverUrl,
+      permalink: item.permalink || '',
+      timestamp: item.timestamp || '',
+      likeCount: item.like_count || 0,
+      commentsCount: item.comments_count || 0,
+      children,
+    });
+  }
+
+  return posts;
 }
 

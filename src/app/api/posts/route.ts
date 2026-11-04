@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchAccountPosts } from '@/lib/meta';
+import { fetchAccountPosts, fetchCarouselChildren } from '@/lib/meta';
 import { InstagramAccount } from '@/types';
 
 export const runtime = 'edge';
@@ -42,6 +42,17 @@ export async function GET(req: NextRequest) {
     ? accounts.find((a) => a.id === accountId) || accounts[0]
     : accounts[0];
 
+  const mediaId = req.nextUrl.searchParams.get('mediaId');
+  if (mediaId) {
+    try {
+      const children = await fetchCarouselChildren(mediaId, targetAccount.pageAccessToken);
+      return NextResponse.json({ success: true, children });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch carousel slides';
+      return NextResponse.json({ success: false, error: message, children: [] });
+    }
+  }
+
   try {
     const posts = await fetchAccountPosts(targetAccount.id, targetAccount.pageAccessToken);
     return NextResponse.json({
@@ -81,3 +92,4 @@ export async function GET(req: NextRequest) {
     });
   }
 }
+
