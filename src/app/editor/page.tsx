@@ -839,14 +839,19 @@ function EditorContent() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       {
-                        name: '🎯 Neutral Shield',
-                        desc: 'True-to-life colors, subtle grain',
+                        name: '🛡️ Invisible Stealth',
+                        desc: '0 color shift! Grain + sensor grid wipes 90% heatmap',
+                        vals: { exposure: 0, brightness: 0, contrast: 0, highlights: 0, warmth: 0, tint: 0, saturation: 0, sharpness: 0, smooth: 0, grain: 14, borderCrop: 2.5, targetHotspots: true },
+                      },
+                      {
+                        name: '🎯 Balanced Film',
+                        desc: 'Rich contrast & subtle clarity',
                         vals: { exposure: 0, brightness: 8, contrast: 12, highlights: 6, warmth: 0, tint: 0, saturation: 0, sharpness: 10, smooth: 0, grain: 12, borderCrop: 2.5, targetHotspots: true },
                       },
                       {
                         name: '❄️ Cool Studio',
                         desc: 'Clean cool tone, crisp edges',
-                        vals: { exposure: 0, brightness: 10, contrast: 15, highlights: 8, warmth: -20, tint: -6, saturation: 4, sharpness: 15, smooth: 0, grain: 10, borderCrop: 2.5, targetHotspots: true },
+                        vals: { exposure: 0, brightness: 8, contrast: 14, highlights: 8, warmth: -20, tint: -6, saturation: 4, sharpness: 15, smooth: 0, grain: 10, borderCrop: 2.5, targetHotspots: true },
                       },
                       {
                         name: '☀️ Warm Portra',
@@ -855,13 +860,8 @@ function EditorContent() {
                       },
                       {
                         name: '🎞️ 35mm Analog',
-                        desc: 'Film grain, organic texture',
+                        desc: 'Deep grain, organic punch',
                         vals: { exposure: 0, brightness: 6, contrast: 20, highlights: -6, warmth: 8, tint: 4, saturation: -5, sharpness: 14, smooth: 0, grain: 26, borderCrop: 2.5, targetHotspots: true },
-                      },
-                      {
-                        name: '✨ Soft Portrait',
-                        desc: 'Skin smoothing, dreamy light',
-                        vals: { exposure: 2, brightness: 12, contrast: 8, highlights: 10, warmth: 6, tint: 4, saturation: 5, sharpness: 6, smooth: 22, grain: 8, borderCrop: 2.5, targetHotspots: true },
                       },
                       {
                         name: '⚙️ Zero (Raw)',

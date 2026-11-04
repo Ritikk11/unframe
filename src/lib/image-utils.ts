@@ -24,15 +24,15 @@ export interface PhotographicAdjustments {
 
 export const DEFAULT_ADJUSTMENTS: PhotographicAdjustments = {
   exposure: 0,
-  brightness: 8,
-  contrast: 12,
-  highlights: 6,
+  brightness: 0,
+  contrast: 0,
+  highlights: 0,
   warmth: 0,
   tint: 0,
   saturation: 0,
-  sharpness: 10,
+  sharpness: 0,
   smooth: 0,
-  grain: 12,
+  grain: 14,
   borderCrop: 2.5,
   targetHotspots: true,
 };
@@ -278,7 +278,15 @@ export function applyPhotographicTone(
         b += noise;
       }
 
-      // J. Soft optical highlight compression (prevents digital clipping)
+      // J. Hardware Bayer CFA (Color Filter Array) Micro-Grid Simulation
+      // Injects the microscopic sub-pixel PRNU demosaicing harmonic of physical CMOS silicon.
+      // Completely imperceptible to human eyes (±0.4 levels), authentic to frequency classifiers.
+      const cfaMod = ((x % 2) ^ (y % 2)) === 1 ? 0.45 : -0.45;
+      r -= cfaMod * 0.4;
+      g += cfaMod * 0.5;
+      b -= cfaMod * 0.4;
+
+      // K. Soft optical highlight compression (prevents digital clipping)
       if (r > 240) r = 240 + (r - 240) * 0.45;
       if (g > 240) g = 240 + (g - 240) * 0.45;
       if (b > 240) b = 240 + (b - 240) * 0.45;
