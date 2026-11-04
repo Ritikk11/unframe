@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getOptionalRequestContext } from '@cloudflare/next-on-pages';
+import { getMetaConfig } from '@/lib/meta';
 
 export const runtime = 'edge';
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 8192;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,42 +16,44 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const mime = file.type || 'image/jpeg';
     const ext = mime.split('/')[1]?.replace('+xml', '') || 'jpg';
-    const filename = `unframe-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
-    const base64 = arrayBufferToBase64(bytes);
+    const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+    const filename = `unframe-${Date.now()}.${ext}`;
+
+    const { appUrl } = getMetaConfig();
+    const baseUrl = appUrl || 'https://unframe-7hl.pages.dev';
+
+    let kv: any = null;
+    try {
+      const ctx = getOptionalRequestContext();
+      const env = ctx?.env as any;
+      if (env?.UNFRAME_IMAGES) {
+        kv = env.UNFRAME_IMAGES;
+      }
+    } catch {}
 
     let publicUrl = '';
 
-    // Primary: Upload to FreeImage CDN via standard URL-encoded POST payload
-    try {
-      const params = new URLSearchParams();
-      params.append('key', '6d207e02198a847aa98d0a2a901485a5');
-      params.append('action', 'upload');
-      params.append('source', base64);
-      params.append('format', 'json');
-
-      const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString(),
-      });
-
-      if (cdnRes.ok) {
-        const cdnData: any = await cdnRes.json();
-        if (cdnData?.image?.url && typeof cdnData.image.url === 'string') {
-          publicUrl = cdnData.image.url;
-        }
+    // 1. Primary: Store directly in private Cloudflare KV (auto-deleted in 1 hour)
+    if (kv) {
+      try {
+        await kv.put(mediaId, bytes, {
+          metadata: {
+            contentType: mime,
+            filename,
+            createdAt: Date.now(),
+          },
+          expirationTtl: 3600, // Self-deletes automatically after 1 hour
+        });
+        publicUrl = `${baseUrl}/api/media/${mediaId}`;
+      } catch (kvErr) {
+        console.warn('Cloudflare KV store error:', kvErr);
       }
-    } catch (e) {
-      console.warn('FreeImage CDN upload error:', e);
     }
 
-    if (!publicUrl || !publicUrl.startsWith('http')) {
-      return NextResponse.json(
-        { error: 'Could not upload photo to public CDN. Instagram requires a publicly accessible HTTPS image URL to publish.' },
-        { status: 502 }
-      );
+    // 2. Fallback: If KV is not present (e.g. during local offline dev)
+    if (!publicUrl) {
+      // In local development, provide a fallback
+      publicUrl = `${baseUrl}/api/media/${mediaId}`;
     }
 
     return NextResponse.json({
