@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     // 1. Primary: Store directly in private Cloudflare KV (auto-deleted in 1 hour)
     if (kv) {
       try {
-        await kv.put(mediaId, sanitizedBytes, {
+        await kv.put(mediaId, sanitizedBytes.buffer as ArrayBuffer, {
           metadata: {
             contentType: mime,
             filename,
