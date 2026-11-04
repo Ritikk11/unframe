@@ -115,11 +115,11 @@ function EditorContent() {
       const previewUrl = URL.createObjectURL(file);
       const meta = await getImageDimensions(previewUrl);
 
-      // Check ratio: reject photos taller than 9:16 (aspectRatio < 0.55)
-      if (meta.aspectRatio < 0.55) {
+      // Check ratio: reject photos significantly taller than 9:16 (aspectRatio < 0.50)
+      if (meta.aspectRatio < 0.50) {
         setToastMessage({
           type: 'error',
-          text: "This photo can't be posted. It's taller than 9:16. Crop it or choose another.",
+          text: "This photo is too tall to be published on Instagram. Please crop it closer to a 9:16 vertical format.",
         });
         continue;
       }
@@ -155,10 +155,10 @@ function EditorContent() {
     try {
       const meta = await getImageDimensions(url);
 
-      if (meta.aspectRatio < 0.55) {
+      if (meta.aspectRatio < 0.50) {
         setToastMessage({
           type: 'error',
-          text: "This photo can't be posted. It's taller than 9:16. Crop it or choose another.",
+          text: "This photo is too tall to be published on Instagram. Please crop it closer to a 9:16 vertical format.",
         });
         setIsLoadingUrl(false);
         return;
