@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     let publicUrl = '';
 
     // 1. Primary: Upload to FreeImage CDN via standard Base64 payload
+    let debugInfo = '';
     try {
       const cdnFormData = new FormData();
       cdnFormData.append('key', '6d207e02198a847aa98d0a2a901485a5');
@@ -40,17 +41,25 @@ export async function POST(req: NextRequest) {
 
       const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
         method: 'POST',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
         body: cdnFormData,
       });
 
-      if (cdnRes.ok) {
-        const cdnData: any = await cdnRes.json();
+      const cdnText = await cdnRes.text();
+      try {
+        const cdnData = JSON.parse(cdnText);
         if (cdnData?.image?.url && typeof cdnData.image.url === 'string') {
           publicUrl = cdnData.image.url;
+        } else {
+          debugInfo = `FreeImage error (${cdnRes.status}): ${cdnText.slice(0, 150)}`;
         }
+      } catch {
+        debugInfo = `FreeImage parse error (${cdnRes.status}): ${cdnText.slice(0, 150)}`;
       }
-    } catch (e) {
-      console.warn('FreeImage CDN upload error:', e);
+    } catch (e: any) {
+      debugInfo = `FreeImage fetch error: ${e?.message || e}`;
     }
 
     // 2. Secondary fallback: tmpfiles.org via Blob
@@ -87,6 +96,7 @@ export async function POST(req: NextRequest) {
       success: true,
       url: publicUrl,
       filename,
+      debug: debugInfo || undefined,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Upload failed';
