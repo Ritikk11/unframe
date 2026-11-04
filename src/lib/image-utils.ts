@@ -1,5 +1,7 @@
 import { stripAiAndInjectRealMetadata } from '@/lib/metadata-cleaner';
 
+export type CameraGradeStyle = 'natural' | 'editorial' | 'cinematic' | 'none';
+
 export interface ImageMetadata {
   width: number;
   height: number;
@@ -47,14 +49,107 @@ export function getImageDimensions(src: string): Promise<ImageMetadata> {
 }
 
 /**
- * Converts image to standard JPEG format and applies Automatic 9:16 Safety Clamping:
- * - If an image is within 1-2% of 9:16 (such as 748x1340, ratio 0.558), it micro-fits
- *   the height to exact 9:16 (0.5625) by trimming microscopic extra pixels (~5px) from top/bottom.
- * - If an image is already within Instagram's allowed aspect ratios [0.5625, 1.91],
- *   it retains 100% of the original dimensions and pixels untouched.
- * - Always ensures output is 100% compliant standard sRGB `image/jpeg` format for Meta's API.
+ * Adaptive Photographic Tone & Sensor Response Engine:
+ * - Content-aware luminance and dynamic range evaluation.
+ * - Gentle S-curve contrast expansion (+12% to +15%).
+ * - Midtone & highlight expansion (shifts pixels out of synthetic diffusion clusters).
+ * - Soft highlight roll-off (emulates optical lens highlight compression).
+ * - Film black point lift (prevents dead digital zeros).
  */
-export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Promise<File> {
+export function applyPhotographicTone(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  style: CameraGradeStyle = 'natural',
+  intensity: number = 0.75
+): void {
+  if (style === 'none' || intensity <= 0) return;
+
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+
+  // 1. Content-aware luminance sampling
+  let sumLum = 0;
+  const sampleStep = 8;
+  let sampleCount = 0;
+  for (let i = 0; i < data.length; i += 4 * sampleStep) {
+    sumLum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    sampleCount++;
+  }
+  const avgLum = sumLum / sampleCount;
+  const isDark = avgLum < 110;
+
+  const contrastK = 1.0 + 0.14 * intensity;
+  const midLift = isDark ? 18 * intensity : 10 * intensity;
+  const shadowLift = 6 * intensity;
+
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    const normLum = lum / 255.0;
+
+    // A. Film black point lift (soft floor)
+    const shadowFactor = Math.max(0, 1.0 - normLum * 3.0);
+    r += shadowLift * shadowFactor;
+    g += shadowLift * shadowFactor;
+    b += shadowLift * shadowFactor;
+
+    // B. Contrast expansion around midpoint 118
+    r = (r - 118) * contrastK + 118;
+    g = (g - 118) * contrastK + 118;
+    b = (b - 118) * contrastK + 118;
+
+    // C. Midtone & highlight lift
+    const bell = Math.sin(normLum * Math.PI) * midLift;
+    r += bell;
+    g += bell;
+    b += bell;
+
+    // D. Style-specific color harmony
+    if (style === 'natural') {
+      // Warm golden highlights, gentle warmth in mid-highs (Portra film vibe)
+      const warmFactor = Math.pow(normLum, 1.4) * (12 * intensity);
+      r += warmFactor;
+      g += warmFactor * 0.4;
+      b -= warmFactor * 0.2;
+    } else if (style === 'editorial') {
+      // Crisp, high clarity
+      r = (r - 128) * 1.03 + 128;
+      g = (g - 128) * 1.03 + 128;
+      b = (b - 128) * 1.03 + 128;
+    } else if (style === 'cinematic') {
+      // Teal shadows, amber highlights
+      const shadowCool = (1.0 - normLum) * (8 * intensity);
+      const highWarm = normLum * (10 * intensity);
+      r += highWarm;
+      b += shadowCool;
+    }
+
+    // E. Soft Highlight Roll-off (prevents harsh 255 burn)
+    if (r > 240) r = 240 + (r - 240) * 0.45;
+    if (g > 240) g = 240 + (g - 240) * 0.45;
+    if (b > 240) b = 240 + (b - 240) * 0.45;
+
+    data[i] = Math.min(253, Math.max(0, Math.round(r)));
+    data[i + 1] = Math.min(253, Math.max(0, Math.round(g)));
+    data[i + 2] = Math.min(253, Math.max(0, Math.round(b)));
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
+
+/**
+ * Converts image to standard JPEG format, applies photographic tone response,
+ * strips C2PA manifests, and injects authentic camera EXIF + GPS metadata.
+ */
+export async function convertToOriginalJpeg(
+  fileOrUrl: File | Blob | string,
+  style: CameraGradeStyle = 'natural',
+  intensity: number = 0.75
+): Promise<File> {
   return new Promise((resolve, reject) => {
     let objectUrl = '';
     if (typeof fileOrUrl === 'string') {
@@ -84,8 +179,7 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
       let srcH = origH;
 
       if (ratio < 0.5625) {
-        // Taller than 9:16 limit (e.g. 748x1340 where ratio is 0.5582)
-        // Clamp height to exact 9:16 (0.5626 ensures rounding margin safety for Meta)
+        // Clamp height to exact 9:16 (0.5626 margin safety for Meta)
         targetW = origW;
         targetH = Math.floor(origW / 0.5626);
         srcW = origW;
@@ -93,7 +187,6 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
         srcX = 0;
         srcY = Math.round((origH - targetH) / 2);
       } else if (ratio > 1.91) {
-        // Wider than 1.91:1 limit
         targetH = origH;
         targetW = Math.floor(origH * 1.91);
         srcW = targetW;
@@ -112,8 +205,11 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
         return reject(new Error('Canvas context unavailable'));
       }
 
-      // Draw with safety clamping applied
+      // 1. Draw with safety clamping applied
       ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, targetW, targetH);
+
+      // 2. Apply Adaptive Photographic Tone Grading Engine
+      applyPhotographicTone(ctx, targetW, targetH, style, intensity);
 
       canvas.toBlob(
         async (blob) => {
@@ -123,7 +219,7 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
           }
 
           try {
-            // Read raw bytes, strip all C2PA / AI markers, and inject authentic camera EXIF
+            // Read raw bytes, strip all C2PA / AI markers, and inject rich camera + GPS EXIF
             const rawBytes = await blob.arrayBuffer();
             const cleanBytes = stripAiAndInjectRealMetadata(new Uint8Array(rawBytes));
             const cleanBlob = new Blob([cleanBytes.buffer as ArrayBuffer], { type: 'image/jpeg' });
@@ -154,5 +250,3 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
     img.src = objectUrl;
   });
 }
-
-

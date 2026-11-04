@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import PhonePreviewModal from '@/components/PhonePreviewModal';
 import { SlideItem, InstagramAccount } from '@/types';
-import { getImageDimensions, convertToOriginalJpeg } from '@/lib/image-utils';
+import { getImageDimensions, convertToOriginalJpeg, CameraGradeStyle } from '@/lib/image-utils';
 import {
   Plus,
   X,
@@ -29,6 +29,7 @@ import {
   Layers,
   ArrowRight,
   Edit3,
+  ShieldCheck,
 } from 'lucide-react';
 
 function EditorContent() {
@@ -42,6 +43,10 @@ function EditorContent() {
   // Content state
   const [slides, setSlides] = useState<SlideItem[]>([]);
   const [caption, setCaption] = useState('');
+
+  // Meta Shield & Camera Grade state
+  const [cameraStyle, setCameraStyle] = useState<CameraGradeStyle>('natural');
+  const [metaShieldEnabled, setMetaShieldEnabled] = useState(true);
 
   // Image URL Input state
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -293,8 +298,9 @@ function EditorContent() {
             fileToUpload = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
           }
 
-          // Convert to pure standard JPEG with exact original dimensions (no cropping, no aspect changes)
-          const jpegFile = await convertToOriginalJpeg(fileToUpload);
+          // Convert to pure standard JPEG with authentic camera EXIF + adaptive tone curve
+          const effectiveStyle = metaShieldEnabled ? cameraStyle : 'none';
+          const jpegFile = await convertToOriginalJpeg(fileToUpload, effectiveStyle);
 
           const formData = new FormData();
           formData.append('file', jpegFile);
@@ -748,7 +754,82 @@ function EditorContent() {
               </div>
             </div>
 
-            {/* 4. Caption Section */}
+            {/* 4. Meta Shield & Camera Profile Section */}
+            <div className="solid-card p-5 flex flex-col gap-3.5 shadow-apple-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5 sm:mt-0 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[15px] font-bold text-white">
+                        Meta Shield & Camera Profile
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                        Active
+                      </span>
+                    </div>
+                    <span className="text-[12px] text-slate-400 block mt-0.5">
+                      Strips AI markers, balances sensor dynamic range, and injects authentic camera & GPS metadata.
+                    </span>
+                  </div>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={metaShieldEnabled}
+                    onChange={(e) => setMetaShieldEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+
+              {metaShieldEnabled && (
+                <div className="pt-3 border-t border-white/10 flex flex-col gap-2.5">
+                  <span className="text-[12px] font-semibold text-slate-300">
+                    Camera Film Profile (Content-Aware Dynamic Range)
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'natural', name: 'Natural (Portra)', desc: 'Soft warmth, golden highlights' },
+                      { id: 'editorial', name: 'Editorial Crisp', desc: 'Punchy clarity, pure whites' },
+                      { id: 'cinematic', name: 'Cinematic Film', desc: 'Teal shadows, rich amber' },
+                      { id: 'none', name: 'EXIF Only', desc: 'Original pixels, EXIF only' },
+                    ].map((style) => (
+                      <button
+                        key={style.id}
+                        type="button"
+                        onClick={() => setCameraStyle(style.id as CameraGradeStyle)}
+                        className={`p-2.5 rounded-xl text-left border transition-all ${
+                          cameraStyle === style.id
+                            ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                            : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <span className="text-[13px] font-bold block text-white">
+                          {style.name}
+                        </span>
+                        <span className="text-[11px] text-slate-400 block leading-tight mt-0.5">
+                          {style.desc}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px]">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Synthesizes authentic <strong>iPhone 15 Pro / Sony Alpha EXIF</strong> with shutter speed, ISO, aperture, 35mm lens specs & GPS coordinates.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 5. Caption Section */}
             <div className="solid-card p-5 flex flex-col gap-2.5 shadow-apple-sm">
               <div className="flex items-center justify-between">
                 <label
@@ -895,7 +976,22 @@ function EditorContent() {
                             {slides.map((s, idx) => (
                               <div key={s.id || idx} className="w-full h-full shrink-0 flex items-center justify-center bg-black">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={s.previewUrl} alt="" className="w-full h-full object-cover" />
+                                <img
+                                  src={s.previewUrl}
+                                  alt=""
+                                  className="w-full h-full object-cover transition-all duration-300"
+                                  style={{
+                                    filter: metaShieldEnabled
+                                      ? cameraStyle === 'natural'
+                                        ? 'contrast(1.08) brightness(1.05) saturate(1.03)'
+                                        : cameraStyle === 'editorial'
+                                        ? 'contrast(1.15) brightness(1.02)'
+                                        : cameraStyle === 'cinematic'
+                                        ? 'contrast(1.10) brightness(1.03) hue-rotate(-2deg)'
+                                        : 'none'
+                                      : 'none',
+                                  }}
+                                />
                               </div>
                             ))}
                           </div>

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       if (env?.UNFRAME_IMAGES) {
         kv = env.UNFRAME_IMAGES;
       }
-    } catch {}
+    } catch { }
 
     let publicUrl = '';
 
