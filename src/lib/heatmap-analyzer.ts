@@ -108,3 +108,4 @@ export function generateClientHeatmap(
     heatmapDataUrl: offCanvas.toDataURL('image/png'),
   };
 }
+

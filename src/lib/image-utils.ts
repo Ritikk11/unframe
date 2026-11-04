@@ -1,6 +1,22 @@
 import { stripAiAndInjectRealMetadata } from '@/lib/metadata-cleaner';
 
-export type CameraGradeStyle = 'natural' | 'editorial' | 'cinematic' | 'none';
+export interface PhotographicAdjustments {
+  brightness: number; // -30 to +30 (default: 12)
+  contrast: number;   // -10 to +35 (default: 15)
+  highlights: number; // -25 to +30 (default: 10)
+  warmth: number;     // -30 (cool) to +30 (warm), default: 0 (neutral)
+  borderCrop: number; // 0 to 5% (default: 2.5%, cuts corner border lines)
+  targetHotspots: boolean; // concentrates adjustments on detected AI zones
+}
+
+export const DEFAULT_ADJUSTMENTS: PhotographicAdjustments = {
+  brightness: 12,
+  contrast: 15,
+  highlights: 10,
+  warmth: 0,
+  borderCrop: 2.5,
+  targetHotspots: true,
+};
 
 export interface ImageMetadata {
   width: number;
@@ -49,106 +65,142 @@ export function getImageDimensions(src: string): Promise<ImageMetadata> {
 }
 
 /**
- * Adaptive Photographic Tone & Sensor Response Engine:
- * - Content-aware luminance and dynamic range evaluation.
- * - Gentle S-curve contrast expansion (+12% to +15%).
- * - Midtone & highlight expansion (shifts pixels out of synthetic diffusion clusters).
- * - Soft highlight roll-off (emulates optical lens highlight compression).
- * - Film black point lift (prevents dead digital zeros).
+ * Heatmap-Targeted Photographic Tone & Sensor Response Engine:
+ * - Content-aware luminance evaluation.
+ * - If targetHotspots is enabled, computes a local variance risk map and weights
+ *   adjustments heavily on flat diffusion areas while preserving crisp textures.
+ * - Supports arbitrary brightness, contrast, highlights, warmth (-30 cool to +30 warm).
+ * - Applies soft optical highlight roll-off and film black point lift.
  */
 export function applyPhotographicTone(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  style: CameraGradeStyle = 'natural',
-  intensity: number = 0.75
+  adjustments: PhotographicAdjustments = DEFAULT_ADJUSTMENTS
 ): void {
-  if (style === 'none' || intensity <= 0) return;
+  const {
+    brightness,
+    contrast,
+    highlights,
+    warmth,
+    targetHotspots,
+  } = adjustments;
 
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
+  const totalPixels = width * height;
 
-  // 1. Content-aware luminance sampling
-  let sumLum = 0;
-  const sampleStep = 8;
-  let sampleCount = 0;
-  for (let i = 0; i < data.length; i += 4 * sampleStep) {
-    sumLum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    sampleCount++;
+  // 1. Luminance map
+  const lum = new Float32Array(totalPixels);
+  for (let i = 0; i < totalPixels; i++) {
+    lum[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
   }
-  const avgLum = sumLum / sampleCount;
-  const isDark = avgLum < 110;
 
-  const contrastK = 1.0 + 0.14 * intensity;
-  const midLift = isDark ? 18 * intensity : 10 * intensity;
-  const shadowLift = 6 * intensity;
+  // 2. Pre-calculate local variance risk map for targeted weighting
+  const riskMap = new Float32Array(totalPixels);
+  if (targetHotspots) {
+    const step = 2;
+    for (let y = 2; y < height - 2; y += step) {
+      for (let x = 2; x < width - 2; x += step) {
+        let mean = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            mean += lum[(y + dy) * width + (x + dx)];
+          }
+        }
+        mean /= 25;
 
-  for (let i = 0; i < data.length; i += 4) {
-    let r = data[i];
-    let g = data[i + 1];
-    let b = data[i + 2];
+        let variance = 0;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const diff = lum[(y + dy) * width + (x + dx)] - mean;
+            variance += diff * diff;
+          }
+        }
+        const stdDev = Math.sqrt(variance / 25);
+        const isMid = mean > 35 && mean < 220;
+        const r = (isMid && stdDev < 16) ? Math.min(1.0, (16 - stdDev) / 16) : 0;
 
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    const normLum = lum / 255.0;
+        for (let dy = 0; dy < step && y + dy < height; dy++) {
+          for (let dx = 0; dx < step && x + dx < width; dx++) {
+            riskMap[(y + dy) * width + (x + dx)] = r;
+          }
+        }
+      }
+    }
+  }
 
-    // A. Film black point lift (soft floor)
+  const contrastK = 1.0 + (contrast / 100.0);
+
+  for (let i = 0; i < totalPixels; i++) {
+    const pIdx = i * 4;
+    let r = data[pIdx];
+    let g = data[pIdx + 1];
+    let b = data[pIdx + 2];
+
+    const l = lum[i];
+    const normLum = l / 255.0;
+
+    // Weight factor: If targetHotspots is on, concentrate adjustments on flat AI zones
+    const weight = targetHotspots ? (0.35 + 0.65 * riskMap[i]) : 1.0;
+
+    // A. Film black point lift
     const shadowFactor = Math.max(0, 1.0 - normLum * 3.0);
-    r += shadowLift * shadowFactor;
-    g += shadowLift * shadowFactor;
-    b += shadowLift * shadowFactor;
+    const sLift = 5.0 * shadowFactor * weight;
+    r += sLift;
+    g += sLift;
+    b += sLift;
 
     // B. Contrast expansion around midpoint 118
-    r = (r - 118) * contrastK + 118;
-    g = (g - 118) * contrastK + 118;
-    b = (b - 118) * contrastK + 118;
+    const effContrast = 1.0 + (contrastK - 1.0) * weight;
+    r = (r - 118) * effContrast + 118;
+    g = (g - 118) * effContrast + 118;
+    b = (b - 118) * effContrast + 118;
 
     // C. Midtone & highlight lift
-    const bell = Math.sin(normLum * Math.PI) * midLift;
-    r += bell;
-    g += bell;
-    b += bell;
+    const midLift = Math.sin(normLum * Math.PI) * (brightness * weight);
+    const highLift = Math.pow(normLum, 1.5) * (highlights * weight);
+    r += midLift + highLift;
+    g += midLift + highLift;
+    b += midLift + highLift;
 
-    // D. Style-specific color harmony
-    if (style === 'natural') {
-      // Warm golden highlights, gentle warmth in mid-highs (Portra film vibe)
-      const warmFactor = Math.pow(normLum, 1.4) * (12 * intensity);
-      r += warmFactor;
-      g += warmFactor * 0.4;
-      b -= warmFactor * 0.2;
-    } else if (style === 'editorial') {
-      // Crisp, high clarity
-      r = (r - 128) * 1.03 + 128;
-      g = (g - 128) * 1.03 + 128;
-      b = (b - 128) * 1.03 + 128;
-    } else if (style === 'cinematic') {
-      // Teal shadows, amber highlights
-      const shadowCool = (1.0 - normLum) * (8 * intensity);
-      const highWarm = normLum * (10 * intensity);
-      r += highWarm;
-      b += shadowCool;
+    // D. Temperature / Warmth slider (-30 cool to +30 warm, 0 neutral)
+    if (warmth > 0) {
+      // Warm amber / golden
+      const wFactor = Math.pow(normLum, 1.3) * (warmth * 0.45 * weight);
+      r += wFactor;
+      g += wFactor * 0.3;
+      b -= wFactor * 0.2;
+    } else if (warmth < 0) {
+      // Cool cyan / blue
+      const cFactor = Math.pow(normLum, 1.2) * (Math.abs(warmth) * 0.4 * weight);
+      b += cFactor;
+      g += cFactor * 0.2;
+      r -= cFactor * 0.3;
     }
 
-    // E. Soft Highlight Roll-off (prevents harsh 255 burn)
+    // E. Soft optical highlight compression (prevents harsh 255 digital clipping)
     if (r > 240) r = 240 + (r - 240) * 0.45;
     if (g > 240) g = 240 + (g - 240) * 0.45;
     if (b > 240) b = 240 + (b - 240) * 0.45;
 
-    data[i] = Math.min(253, Math.max(0, Math.round(r)));
-    data[i + 1] = Math.min(253, Math.max(0, Math.round(g)));
-    data[i + 2] = Math.min(253, Math.max(0, Math.round(b)));
+    data[pIdx] = Math.min(253, Math.max(0, Math.round(r)));
+    data[pIdx + 1] = Math.min(253, Math.max(0, Math.round(g)));
+    data[pIdx + 2] = Math.min(253, Math.max(0, Math.round(b)));
   }
 
   ctx.putImageData(imgData, 0, 0);
 }
 
 /**
- * Converts image to standard JPEG format, applies photographic tone response,
- * strips C2PA manifests, and injects authentic camera EXIF + GPS metadata.
+ * Converts image to standard JPEG format, applies photographic adjustments,
+ * crops telltale edge padding artifacts, strips C2PA manifests,
+ * and injects authentic camera EXIF + GPS metadata.
  */
 export async function convertToOriginalJpeg(
   fileOrUrl: File | Blob | string,
-  style: CameraGradeStyle = 'natural',
-  intensity: number = 0.75
+  adjustments: PhotographicAdjustments = DEFAULT_ADJUSTMENTS,
+  applyShield: boolean = true
 ): Promise<File> {
   return new Promise((resolve, reject) => {
     let objectUrl = '';
@@ -195,6 +247,17 @@ export async function convertToOriginalJpeg(
         srcY = 0;
       }
 
+      // Border Edge Trim (slices off telltale diffusion perimeter padding lines)
+      const borderCropPercent = (applyShield && adjustments.borderCrop > 0) ? (adjustments.borderCrop / 100.0) : 0;
+      if (borderCropPercent > 0) {
+        const borderTrimX = Math.round(srcW * borderCropPercent);
+        const borderTrimY = Math.round(srcH * borderCropPercent);
+        srcX += borderTrimX;
+        srcY += borderTrimY;
+        srcW -= borderTrimX * 2;
+        srcH -= borderTrimY * 2;
+      }
+
       const canvas = document.createElement('canvas');
       canvas.width = targetW;
       canvas.height = targetH;
@@ -205,11 +268,13 @@ export async function convertToOriginalJpeg(
         return reject(new Error('Canvas context unavailable'));
       }
 
-      // 1. Draw with safety clamping applied
+      // 1. Draw with border edge trim & safety clamping applied
       ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, targetW, targetH);
 
-      // 2. Apply Adaptive Photographic Tone Grading Engine
-      applyPhotographicTone(ctx, targetW, targetH, style, intensity);
+      // 2. Apply Heatmap-Targeted Photographic Adjustments
+      if (applyShield) {
+        applyPhotographicTone(ctx, targetW, targetH, adjustments);
+      }
 
       canvas.toBlob(
         async (blob) => {

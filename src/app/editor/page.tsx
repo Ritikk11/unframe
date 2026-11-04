@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import PhonePreviewModal from '@/components/PhonePreviewModal';
 import { SlideItem, InstagramAccount } from '@/types';
-import { getImageDimensions, convertToOriginalJpeg, CameraGradeStyle, applyPhotographicTone } from '@/lib/image-utils';
+import { getImageDimensions, convertToOriginalJpeg, applyPhotographicTone, PhotographicAdjustments, DEFAULT_ADJUSTMENTS } from '@/lib/image-utils';
 import { generateClientHeatmap, HeatmapAnalysisResult } from '@/lib/heatmap-analyzer';
 import {
   Plus,
@@ -31,6 +31,7 @@ import {
   ArrowRight,
   Edit3,
   ShieldCheck,
+  Sliders,
 } from 'lucide-react';
 
 function EditorContent() {
@@ -46,7 +47,7 @@ function EditorContent() {
   const [caption, setCaption] = useState('');
 
   // Meta Shield & Camera Grade state
-  const [cameraStyle, setCameraStyle] = useState<CameraGradeStyle>('natural');
+  const [adjustments, setAdjustments] = useState<PhotographicAdjustments>(DEFAULT_ADJUSTMENTS);
   const [metaShieldEnabled, setMetaShieldEnabled] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [heatmapResult, setHeatmapResult] = useState<HeatmapAnalysisResult | null>(null);
@@ -127,16 +128,15 @@ function EditorContent() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const effectiveStyle = metaShieldEnabled ? cameraStyle : 'none';
-        if (effectiveStyle !== 'none') {
-          applyPhotographicTone(ctx, canvas.width, canvas.height, effectiveStyle);
+        if (metaShieldEnabled) {
+          applyPhotographicTone(ctx, canvas.width, canvas.height, adjustments);
         }
         const res = generateClientHeatmap(canvas, canvas.width, canvas.height);
         setHeatmapResult(res);
       }
     };
     img.src = currentSlide.previewUrl;
-  }, [showHeatmap, slides, activeSlideIndex, cameraStyle, metaShieldEnabled]);
+  }, [showHeatmap, slides, activeSlideIndex, adjustments, metaShieldEnabled]);
 
   // Handle image files
   const handleFiles = async (files: FileList | File[]) => {
@@ -331,9 +331,8 @@ function EditorContent() {
             fileToUpload = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
           }
 
-          // Convert to pure standard JPEG with authentic camera EXIF + adaptive tone curve
-          const effectiveStyle = metaShieldEnabled ? cameraStyle : 'none';
-          const jpegFile = await convertToOriginalJpeg(fileToUpload, effectiveStyle);
+          // Convert to pure standard JPEG with authentic camera EXIF + heatmap-targeted adjustments
+          const jpegFile = await convertToOriginalJpeg(fileToUpload, adjustments, metaShieldEnabled);
 
           const formData = new FormData();
           formData.append('file', jpegFile);
@@ -821,35 +820,158 @@ function EditorContent() {
               </div>
 
               {metaShieldEnabled && (
-                <div className="pt-3 border-t border-white/10 flex flex-col gap-2.5">
-                  <span className="text-[12px] font-semibold text-slate-300">
-                    Camera Film Profile (Content-Aware Dynamic Range)
-                  </span>
+                <div className="pt-3 border-t border-white/10 flex flex-col gap-3.5">
+                  {/* Preset Quick Chips */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-[#00D2FF]" />
+                      <span>Adjustment Controls & Heatmap Targeting</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustments(DEFAULT_ADJUSTMENTS)}
+                      className="text-[11px] text-slate-400 hover:text-white underline transition-colors"
+                    >
+                      Reset to Default
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { id: 'natural', name: 'Natural (Portra)', desc: 'Soft warmth, golden highlights' },
-                      { id: 'editorial', name: 'Editorial Crisp', desc: 'Punchy clarity, pure whites' },
-                      { id: 'cinematic', name: 'Cinematic Film', desc: 'Teal shadows, rich amber' },
-                      { id: 'none', name: 'EXIF Only', desc: 'Original pixels, EXIF only' },
-                    ].map((style) => (
+                      {
+                        name: '🎯 Neutral Shield',
+                        desc: '0 warmth, true-to-life colors',
+                        vals: { brightness: 12, contrast: 15, highlights: 10, warmth: 0, borderCrop: 2.5, targetHotspots: true },
+                      },
+                      {
+                        name: '❄️ Cool Studio',
+                        desc: 'Clean whites, cool tones',
+                        vals: { brightness: 10, contrast: 16, highlights: 12, warmth: -16, borderCrop: 2.5, targetHotspots: true },
+                      },
+                      {
+                        name: '☀️ Warm Portra',
+                        desc: 'Golden glow, warm highlights',
+                        vals: { brightness: 14, contrast: 14, highlights: 12, warmth: 16, borderCrop: 2.5, targetHotspots: true },
+                      },
+                      {
+                        name: '⚙️ Zero (Raw)',
+                        desc: 'No tone shift, EXIF only',
+                        vals: { brightness: 0, contrast: 0, highlights: 0, warmth: 0, borderCrop: 0, targetHotspots: false },
+                      },
+                    ].map((p, idx) => (
                       <button
-                        key={style.id}
+                        key={idx}
                         type="button"
-                        onClick={() => setCameraStyle(style.id as CameraGradeStyle)}
-                        className={`p-2.5 rounded-xl text-left border transition-all ${
-                          cameraStyle === style.id
-                            ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                            : 'bg-black/30 border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.04]'
-                        }`}
+                        onClick={() => setAdjustments({ ...adjustments, ...p.vals })}
+                        className="p-2 rounded-xl text-left border bg-black/30 border-white/10 text-slate-300 hover:text-white hover:bg-white/[0.04] transition-all"
                       >
-                        <span className="text-[13px] font-bold block text-white">
-                          {style.name}
-                        </span>
-                        <span className="text-[11px] text-slate-400 block leading-tight mt-0.5">
-                          {style.desc}
-                        </span>
+                        <span className="text-[12px] font-bold block text-white">{p.name}</span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">{p.desc}</span>
                       </button>
                     ))}
+                  </div>
+
+                  {/* Sliders Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-black/40 border border-white/10">
+                    {/* Brightness */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-300 font-medium">☀️ Brightness</span>
+                        <span className="font-mono text-emerald-400 font-bold">{adjustments.brightness > 0 ? `+${adjustments.brightness}` : adjustments.brightness}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-25"
+                        max="25"
+                        value={adjustments.brightness}
+                        onChange={(e) => setAdjustments({ ...adjustments, brightness: Number(e.target.value) })}
+                        className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Contrast */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-300 font-medium">🌓 Contrast</span>
+                        <span className="font-mono text-emerald-400 font-bold">{adjustments.contrast > 0 ? `+${adjustments.contrast}` : adjustments.contrast}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-10"
+                        max="35"
+                        value={adjustments.contrast}
+                        onChange={(e) => setAdjustments({ ...adjustments, contrast: Number(e.target.value) })}
+                        className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Highlights */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-300 font-medium">✨ Highlights</span>
+                        <span className="font-mono text-emerald-400 font-bold">{adjustments.highlights > 0 ? `+${adjustments.highlights}` : adjustments.highlights}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-20"
+                        max="30"
+                        value={adjustments.highlights}
+                        onChange={(e) => setAdjustments({ ...adjustments, highlights: Number(e.target.value) })}
+                        className="w-full accent-[#00D2FF] h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Temperature / Warmth (Cool to Warm) */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-300 font-medium">🌡️ Temperature</span>
+                        <span className={`font-mono font-bold ${adjustments.warmth > 0 ? 'text-amber-400' : adjustments.warmth < 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
+                          {adjustments.warmth > 0 ? `+${adjustments.warmth} (Warm)` : adjustments.warmth < 0 ? `${adjustments.warmth} (Cool)` : '0 (Neutral)'}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-25"
+                        max="25"
+                        value={adjustments.warmth}
+                        onChange={(e) => setAdjustments({ ...adjustments, warmth: Number(e.target.value) })}
+                        className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Border Edge Trim */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-300 font-medium">✂️ Border Edge Trim (Corner lines)</span>
+                        <span className="font-mono text-emerald-400 font-bold">{adjustments.borderCrop}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="0.5"
+                        value={adjustments.borderCrop}
+                        onChange={(e) => setAdjustments({ ...adjustments, borderCrop: Number(e.target.value) })}
+                        className="w-full accent-emerald-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Target AI Hotspots Toggle */}
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/5">
+                      <div>
+                        <span className="text-[12px] font-bold text-white block">🎯 Target AI Hotspots Only</span>
+                        <span className="text-[10px] text-slate-400 block">Concentrates adjustments on detected flat diffusion areas</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={adjustments.targetHotspots}
+                          onChange={(e) => setAdjustments({ ...adjustments, targetHotspots: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px]">
@@ -1068,14 +1190,17 @@ function EditorContent() {
                                   className="w-full h-full object-cover transition-all duration-300"
                                   style={{
                                     filter: metaShieldEnabled
-                                      ? cameraStyle === 'natural'
-                                        ? 'contrast(1.08) brightness(1.05) saturate(1.03)'
-                                        : cameraStyle === 'editorial'
-                                        ? 'contrast(1.15) brightness(1.02)'
-                                        : cameraStyle === 'cinematic'
-                                        ? 'contrast(1.10) brightness(1.03) hue-rotate(-2deg)'
-                                        : 'none'
+                                      ? `brightness(${1 + adjustments.brightness / 120}) contrast(${1 + adjustments.contrast / 100}) ${
+                                          adjustments.warmth > 0
+                                            ? `sepia(${adjustments.warmth * 0.4}%) hue-rotate(-${adjustments.warmth * 0.3}deg)`
+                                            : adjustments.warmth < 0
+                                            ? `hue-rotate(${Math.abs(adjustments.warmth) * 0.5}deg) saturate(${1 + Math.abs(adjustments.warmth) * 0.005})`
+                                            : ''
+                                        }`
                                       : 'none',
+                                    transform: metaShieldEnabled && adjustments.borderCrop > 0
+                                      ? `scale(${1 + (adjustments.borderCrop * 2) / 100})`
+                                      : 'scale(1)',
                                   }}
                                 />
                               </div>
