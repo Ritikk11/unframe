@@ -30,59 +30,30 @@ export async function POST(req: NextRequest) {
 
     let publicUrl = '';
 
-    // 1. Primary: Upload to FreeImage CDN via standard Base64 payload
-    let debugInfo = '';
+    // Primary: Upload to FreeImage CDN via standard URL-encoded POST payload
     try {
-      const cdnFormData = new FormData();
-      cdnFormData.append('key', '6d207e02198a847aa98d0a2a901485a5');
-      cdnFormData.append('action', 'upload');
-      cdnFormData.append('source', base64);
-      cdnFormData.append('format', 'json');
+      const params = new URLSearchParams();
+      params.append('key', '6d207e02198a847aa98d0a2a901485a5');
+      params.append('action', 'upload');
+      params.append('source', base64);
+      params.append('format', 'json');
 
       const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
         method: 'POST',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: cdnFormData,
+        body: params.toString(),
       });
 
-      const cdnText = await cdnRes.text();
-      try {
-        const cdnData = JSON.parse(cdnText);
+      if (cdnRes.ok) {
+        const cdnData: any = await cdnRes.json();
         if (cdnData?.image?.url && typeof cdnData.image.url === 'string') {
           publicUrl = cdnData.image.url;
-        } else {
-          debugInfo = `FreeImage error (${cdnRes.status}): ${cdnText.slice(0, 150)}`;
         }
-      } catch {
-        debugInfo = `FreeImage parse error (${cdnRes.status}): ${cdnText.slice(0, 150)}`;
       }
-    } catch (e: any) {
-      debugInfo = `FreeImage fetch error: ${e?.message || e}`;
-    }
-
-    // 2. Secondary fallback: tmpfiles.org via Blob
-    if (!publicUrl || !publicUrl.startsWith('http')) {
-      try {
-        const blob = new Blob([bytes], { type: mime });
-        const tmpFormData = new FormData();
-        tmpFormData.append('file', blob, filename);
-
-        const tmpRes = await fetch('https://tmpfiles.org/api/v1/upload', {
-          method: 'POST',
-          body: tmpFormData,
-        });
-
-        if (tmpRes.ok) {
-          const tmpData: any = await tmpRes.json();
-          if (tmpData?.data?.url) {
-            publicUrl = tmpData.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
-          }
-        }
-      } catch (e) {
-        console.warn('Tmpfiles upload fallback error:', e);
-      }
+    } catch (e) {
+      console.warn('FreeImage CDN upload error:', e);
     }
 
     if (!publicUrl || !publicUrl.startsWith('http')) {
@@ -96,7 +67,6 @@ export async function POST(req: NextRequest) {
       success: true,
       url: publicUrl,
       filename,
-      debug: debugInfo || undefined,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Upload failed';
