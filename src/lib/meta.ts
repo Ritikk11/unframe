@@ -34,7 +34,8 @@ export function generateMetaOAuthUrl(redirectUri: string, state: string = 'auth_
     'pages_show_list',
     'pages_read_engagement',
     'instagram_basic',
-    'instagram_content_publish'
+    'instagram_content_publish',
+    'business_management'
   ].join(',');
 
   const params = new URLSearchParams({
@@ -90,18 +91,39 @@ export async function getLongLivedUserToken(shortLivedToken: string): Promise<st
 
 export async function fetchInstagramAccounts(userAccessToken: string): Promise<{ accounts: InstagramAccount[]; pagesFound: string[] }> {
   const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count},connected_instagram_account{id,username,name,profile_picture_url}';
-  const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${userAccessToken}`);
-  const data = await res.json();
 
-  if (data.error) {
-    throw new Error(data.error.message || 'Failed to fetch Facebook Pages and Instagram accounts');
+  // 1. Fetch standard /me/accounts
+  let pages: any[] = [];
+  try {
+    const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${userAccessToken}`);
+    const data = await res.json();
+    if (Array.isArray(data.data)) {
+      pages = pages.concat(data.data);
+    }
+  } catch (err) {
+    console.error('Error fetching /me/accounts:', err);
   }
 
-  const pages = data.data || [];
-  const accounts: InstagramAccount[] = [];
-  const pagesFound: string[] = pages.map((p: any) => p.name || p.id);
+  // 2. Fallback: check Meta Business Suite Portfolios (/me/businesses) if Page is business-managed
+  try {
+    const bRes = await fetch(`${GRAPH_BASE}/me/businesses?fields=owned_pages{${fields}},client_pages{${fields}}&access_token=${userAccessToken}`);
+    const bData = await bRes.json();
+    if (Array.isArray(bData.data)) {
+      for (const biz of bData.data) {
+        if (biz.owned_pages?.data) pages = pages.concat(biz.owned_pages.data);
+        if (biz.client_pages?.data) pages = pages.concat(biz.client_pages.data);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching /me/businesses:', err);
+  }
 
-  for (const page of pages) {
+  // Deduplicate pages by id
+  const uniquePages = Array.from(new Map(pages.map((p: any) => [p.id, p])).values());
+  const accounts: InstagramAccount[] = [];
+  const pagesFound: string[] = uniquePages.map((p: any) => p.name || p.id);
+
+  for (const page of uniquePages) {
     const ig = page.instagram_business_account || page.connected_instagram_account;
     if (ig) {
       accounts.push({
