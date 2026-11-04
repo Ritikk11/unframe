@@ -11,6 +11,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Eye,
   Check,
   AlertCircle,
@@ -35,6 +36,7 @@ function EditorContent() {
 
   // Auth / Account state
   const [account, setAccount] = useState<InstagramAccount | null>(null);
+  const [allAccounts, setAllAccounts] = useState<InstagramAccount[]>([]);
   const [isLive, setIsLive] = useState(false);
 
   // Content state
@@ -83,12 +85,17 @@ function EditorContent() {
       .then((data) => {
         setIsLive(data.isLive);
         if (data.accounts?.length > 0) {
-          setAccount(data.accounts[0]);
+          setAllAccounts(data.accounts);
+          const savedId = typeof window !== 'undefined' ? localStorage.getItem('ps_selected_account_id') : null;
+          const matched = data.accounts.find((a: InstagramAccount) => a.id === savedId);
+          setAccount(matched || data.accounts[0]);
         } else {
+          setAllAccounts([]);
           setAccount(null);
         }
       })
       .catch(() => {
+        setAllAccounts([]);
         setAccount(null);
       });
   }, []);
@@ -443,32 +450,67 @@ function EditorContent() {
             {/* 1. Account Section */}
             <div className="solid-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-apple-sm">
               {account ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#00D2FF] via-[#7C3AED] to-[#EC4899] p-[1.5px] shrink-0">
-                    <div className="w-full h-full rounded-full bg-black p-[1px]">
-                      <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-[12px] font-bold text-white overflow-hidden">
-                        {account.profilePictureUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={account.profilePictureUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          account.username.slice(0, 1).toUpperCase()
-                        )}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#00D2FF] via-[#7C3AED] to-[#EC4899] p-[1.5px] shrink-0">
+                      <div className="w-full h-full rounded-full bg-black p-[1px]">
+                        <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-[12px] font-bold text-white overflow-hidden">
+                          {account.profilePictureUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={account.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            account.username.slice(0, 1).toUpperCase()
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-bold text-white">
-                        @{account.username}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
-                        Connected
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[15px] font-bold text-white">
+                          @{account.username}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
+                          Connected
+                        </span>
+                      </div>
+                      <span className="text-[12px] text-slate-400">
+                        {account.pageName ? `Via Page: ${account.pageName} • ` : ''}Publishing full 9:16 to feed
                       </span>
                     </div>
-                    <span className="text-[12px] text-slate-400">
-                      Publishing full-screen photos live to feed
-                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 self-end sm:self-auto">
+                    {allAccounts.length > 1 && (
+                      <div className="relative">
+                        <select
+                          value={account.id}
+                          onChange={(e) => {
+                            const found = allAccounts.find((a) => a.id === e.target.value);
+                            if (found) {
+                              setAccount(found);
+                              if (typeof window !== 'undefined') {
+                                localStorage.setItem('ps_selected_account_id', found.id);
+                              }
+                            }
+                          }}
+                          className="bg-white/10 hover:bg-white/15 text-white text-[12px] font-semibold rounded-full pl-3 pr-7 py-1.5 border border-white/20 focus:outline-none focus:ring-1 focus:ring-[#00D2FF] appearance-none cursor-pointer transition-all"
+                        >
+                          {allAccounts.map((acc) => (
+                            <option key={acc.id} value={acc.id} className="bg-slate-900 text-white text-[13px]">
+                              @{acc.username} {acc.pageName ? `(${acc.pageName})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    )}
+                    <Link
+                      href="/account"
+                      className="btn-secondary h-8 px-3 text-[12px] rounded-full"
+                    >
+                      Manage
+                    </Link>
                   </div>
                 </div>
               ) : (
@@ -488,15 +530,6 @@ function EditorContent() {
                     <span>Connect Instagram</span>
                   </a>
                 </div>
-              )}
-
-              {account && (
-                <Link
-                  href="/account"
-                  className="btn-secondary h-9 px-3.5 text-[13px] rounded-full self-end sm:self-auto"
-                >
-                  Change
-                </Link>
               )}
             </div>
 

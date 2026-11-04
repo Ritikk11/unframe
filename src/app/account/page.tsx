@@ -10,6 +10,7 @@ import { AlertTriangle, Check, Trash2, LogOut } from 'lucide-react';
 
 export default function AccountPage() {
   const [account, setAccount] = useState<InstagramAccount | null>(null);
+  const [allAccounts, setAllAccounts] = useState<InstagramAccount[]>([]);
   const [isLive, setIsLive] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -20,17 +21,29 @@ export default function AccountPage() {
       .then((data) => {
         setIsLive(data.isLive);
         if (data.accounts?.length > 0) {
-          setAccount(data.accounts[0]);
+          setAllAccounts(data.accounts);
+          const savedId = typeof window !== 'undefined' ? localStorage.getItem('ps_selected_account_id') : null;
+          const matched = data.accounts.find((a: InstagramAccount) => a.id === savedId);
+          setAccount(matched || data.accounts[0]);
         }
       })
       .catch(() => {});
   }, []);
 
+  const handleSelectAccount = (selected: InstagramAccount) => {
+    setAccount(selected);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ps_selected_account_id', selected.id);
+    }
+    setFeedback(`Active account set to @${selected.username}`);
+  };
+
   const handleDisconnect = async () => {
     await fetch('/api/auth/status', { method: 'DELETE' });
     setAccount(null);
+    setAllAccounts([]);
     setIsLive(false);
-    setFeedback('Instagram account disconnected.');
+    setFeedback('All Instagram accounts disconnected.');
   };
 
   const handleDeleteAccount = async () => {
@@ -62,50 +75,99 @@ export default function AccountPage() {
 
         {/* 1. Instagram account section */}
         <div className="solid-card p-6 flex flex-col gap-4 shadow-apple border border-white/10">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[17px] font-bold text-white">
-              Instagram connection
-            </h2>
-            {account && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
-                Active
-              </span>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="text-[17px] font-bold text-white">
+                Connected Instagram accounts
+              </h2>
+              <p className="text-[13px] text-slate-400 mt-0.5">
+                All Instagram Creator/Business profiles linked to your Facebook Pages.
+              </p>
+            </div>
+            {allAccounts.length > 0 && (
+              <div className="flex items-center gap-2">
+                <a
+                  href="/api/auth/facebook"
+                  className="btn-secondary h-8 px-3 text-[12px] rounded-full text-slate-300 hover:text-white"
+                >
+                  Refresh / Add More
+                </a>
+                <button
+                  type="button"
+                  onClick={handleDisconnect}
+                  className="btn-secondary h-8 px-3 text-[12px] rounded-full text-rose-400 hover:text-rose-300 hover:border-rose-500/50"
+                >
+                  Disconnect All
+                </button>
+              </div>
             )}
           </div>
 
-          {account ? (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.04] border border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#00D2FF] via-[#7C3AED] to-[#EC4899] p-[2px]">
-                  <div className="w-full h-full rounded-full bg-black p-[1.5px]">
-                    <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-[14px] font-bold text-white overflow-hidden">
-                      {account.profilePictureUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={account.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+          {allAccounts.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {allAccounts.map((acc) => {
+                const isSelected = account?.id === acc.id;
+                return (
+                  <div
+                    key={acc.id}
+                    className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl border transition-all ${
+                      isSelected
+                        ? 'bg-white/[0.08] border-[#00D2FF]/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#00D2FF] via-[#7C3AED] to-[#EC4899] p-[2px] shrink-0">
+                        <div className="w-full h-full rounded-full bg-black p-[1.5px]">
+                          <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-[14px] font-bold text-white overflow-hidden">
+                            {acc.profilePictureUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={acc.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              acc.username.slice(0, 1).toUpperCase()
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[15px] font-bold text-white">
+                            @{acc.username}
+                          </span>
+                          {isSelected && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
+                              Active in Studio
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[13px] text-slate-400">
+                          Linked via Facebook Page: <span className="text-slate-200 font-medium">{acc.pageName || 'Main Page'}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="self-end sm:self-auto">
+                      {isSelected ? (
+                        <Link
+                          href="/editor"
+                          className="btn-primary h-8 px-4 text-[12px] rounded-full"
+                        >
+                          Open in Editor
+                        </Link>
                       ) : (
-                        account.username.slice(0, 1).toUpperCase()
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAccount(acc)}
+                          className="btn-secondary h-8 px-4 text-[12px] rounded-full text-slate-200 hover:text-white"
+                        >
+                          Select Account
+                        </button>
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[15px] font-bold text-white">
-                    @{account.username}
-                  </span>
-                  <span className="text-[13px] text-slate-400">
-                    Meta Graph API Linked
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDisconnect}
-                className="btn-secondary h-10 px-4 text-[13px] rounded-full self-end sm:self-auto text-rose-400 hover:text-rose-300 hover:border-rose-500/50"
-              >
-                Disconnect
-              </button>
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.04] border border-white/10">
