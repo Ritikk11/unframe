@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import PhonePreviewModal from '@/components/PhonePreviewModal';
 import { SlideItem, InstagramAccount } from '@/types';
-import { getImageDimensions, convertToOriginalJpeg, CameraGradeStyle } from '@/lib/image-utils';
+import { getImageDimensions, convertToOriginalJpeg, CameraGradeStyle, applyPhotographicTone } from '@/lib/image-utils';
+import { generateClientHeatmap, HeatmapAnalysisResult } from '@/lib/heatmap-analyzer';
 import {
   Plus,
   X,
@@ -47,6 +48,8 @@ function EditorContent() {
   // Meta Shield & Camera Grade state
   const [cameraStyle, setCameraStyle] = useState<CameraGradeStyle>('natural');
   const [metaShieldEnabled, setMetaShieldEnabled] = useState(true);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [heatmapResult, setHeatmapResult] = useState<HeatmapAnalysisResult | null>(null);
 
   // Image URL Input state
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -104,6 +107,36 @@ function EditorContent() {
         setAccount(null);
       });
   }, []);
+
+  // Recalculate forensic AI risk heatmap whenever image or grade profile changes
+  useEffect(() => {
+    if (!showHeatmap || slides.length === 0) {
+      setHeatmapResult(null);
+      return;
+    }
+
+    const currentSlide = slides[activeSlideIndex] || slides[0];
+    if (!currentSlide?.previewUrl) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 800;
+      canvas.height = img.naturalHeight || 800;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const effectiveStyle = metaShieldEnabled ? cameraStyle : 'none';
+        if (effectiveStyle !== 'none') {
+          applyPhotographicTone(ctx, canvas.width, canvas.height, effectiveStyle);
+        }
+        const res = generateClientHeatmap(canvas, canvas.width, canvas.height);
+        setHeatmapResult(res);
+      }
+    };
+    img.src = currentSlide.previewUrl;
+  }, [showHeatmap, slides, activeSlideIndex, cameraStyle, metaShieldEnabled]);
 
   // Handle image files
   const handleFiles = async (files: FileList | File[]) => {
@@ -825,6 +858,59 @@ function EditorContent() {
                       Synthesizes authentic <strong>iPhone 15 Pro / Sony Alpha EXIF</strong> with shutter speed, ISO, aperture, 35mm lens specs & GPS coordinates.
                     </span>
                   </div>
+
+                  {/* Forensic Classifier Heatmap Inspector */}
+                  <div className="flex flex-col gap-2 pt-2.5 border-t border-white/10">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-semibold text-slate-300 flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-[#00D2FF]" />
+                        <span>Classifier Attention Heatmap</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowHeatmap(!showHeatmap)}
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all flex items-center gap-1.5 ${
+                          showHeatmap
+                            ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${showHeatmap ? 'bg-rose-400 animate-pulse' : 'bg-slate-400'}`} />
+                        <span>{showHeatmap ? 'Hide Heatmap' : 'Inspect Heatmap'}</span>
+                      </button>
+                    </div>
+
+                    {showHeatmap && (
+                      <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 flex flex-col gap-2 text-[11px]">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5 text-rose-400 font-semibold">
+                              <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]" />
+                              AI Diffusion Hotspot
+                            </span>
+                            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
+                              Authentic Variance
+                            </span>
+                          </div>
+                          {heatmapResult && (
+                            <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                              heatmapResult.riskLabel === 'LOW'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : heatmapResult.riskLabel === 'MEDIUM'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            }`}>
+                              Risk: {heatmapResult.riskScore}% ({heatmapResult.riskLabel})
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-slate-400 text-[10px] leading-tight">
+                          Shows regions where vision classifiers target flat diffusion gradients. Applying film profiles fragments these hotspots into authentic green zones.
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -999,6 +1085,22 @@ function EditorContent() {
                           {slides.length > 1 && (
                             <div className="absolute top-2.5 right-2.5 bg-black/70 backdrop-blur-md text-white text-[11px] font-semibold px-2 py-0.5 rounded-full shadow-sm border border-white/10">
                               {activeSlideIndex + 1}/{slides.length}
+                            </div>
+                          )}
+
+                          {/* Forensic Heatmap Overlay Layer */}
+                          {showHeatmap && heatmapResult?.heatmapDataUrl && (
+                            <div className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-300">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={heatmapResult.heatmapDataUrl}
+                                alt="Forensic Classifier Heatmap"
+                                className="w-full h-full object-cover mix-blend-screen opacity-90"
+                              />
+                              <div className="absolute bottom-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-black/85 backdrop-blur-md border border-white/20 text-[10px] font-bold text-white flex items-center gap-1.5 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                <span>Forensic Attention Heatmap</span>
+                              </div>
                             </div>
                           )}
 
