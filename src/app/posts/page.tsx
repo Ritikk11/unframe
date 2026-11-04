@@ -90,8 +90,8 @@ export default function PostsPage() {
         : [{ id: post.id, mediaUrl: post.mediaUrl, mediaType: post.mediaType }];
     setModalSlides(initialSlides);
 
-    // If it's a carousel but children array had only 1 or 0 items, dynamically fetch full list
-    if (post.mediaType === 'CAROUSEL_ALBUM' && (!post.children || post.children.length <= 1)) {
+    // If it's a carousel, dynamically ensure 100% of all child slides are fetched directly
+    if (post.mediaType === 'CAROUSEL_ALBUM') {
       setIsLoadingSlides(true);
       try {
         const res = await fetch(`/api/posts?accountId=${selectedAccount?.id}&mediaId=${post.id}`);
@@ -271,13 +271,15 @@ export default function PostsPage() {
           </div>
         )}
 
-        {/* Music Notice Pill Banner */}
-        <div className="p-3.5 mb-6 rounded-2xl bg-gradient-to-r from-blue-950/60 to-purple-950/60 border border-blue-500/30 flex items-start gap-3 text-[13px] text-blue-200">
-          <Music className="w-4 h-4 text-[#00D2FF] shrink-0 mt-0.5" />
-          <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-white">Adding Music to Posts:</span>
-            <span className="text-slate-300">
-              Meta does not allow third-party apps to attach commercial music to photo carousels via API (music is exclusive to Reels or direct app posting). To use trending music with 9:16 portrait carousels, you can download your uncropped 9:16 slides from the Editor and tap the 🎵 Music icon inside Instagram!
+        {/* Music Tip Banner */}
+        <div className="p-4 mb-6 rounded-2xl bg-gradient-to-r from-blue-950/70 via-purple-950/70 to-indigo-950/70 border border-[#00D2FF]/30 flex items-start gap-3.5 text-[13px] text-blue-100 shadow-apple-sm">
+          <div className="w-8 h-8 rounded-full bg-[#00D2FF]/20 border border-[#00D2FF]/40 text-[#00D2FF] flex items-center justify-center shrink-0 mt-0.5">
+            <Music className="w-4 h-4" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-extrabold text-white text-[14px]">How to Add Music to your Posts:</span>
+            <span className="text-slate-200 leading-relaxed">
+              Meta does not allow third-party apps to attach commercial music via API. However, after publishing your full 9:16 post from Unframe, you can easily add music inside Instagram: open the post in the Instagram app, tap the <strong>three dots (&hellip;)</strong> &rarr; <strong>Edit</strong> &rarr; tap <strong>Add Music</strong> right under your username!
             </span>
           </div>
         </div>

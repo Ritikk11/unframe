@@ -5,23 +5,23 @@ import { APP_CONFIG } from '@/lib/config';
 
 export default function RefundsPage() {
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <div className="min-h-[100dvh] flex flex-col text-white bg-[#06070d]">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-[680px] mx-auto px-4 py-8 md:py-16">
-        <div className="solid-card p-6 sm:p-8 flex flex-col gap-6">
+      <main className="flex-1 w-full max-w-[720px] mx-auto px-4 py-8 md:py-16">
+        <div className="solid-card p-6 sm:p-8 flex flex-col gap-6 border border-white/15 bg-white/[0.04] shadow-apple-lg">
           <div>
-            <h1 className="text-[28px] md:text-[34px] font-bold text-[#111111]">
+            <h1 className="text-[28px] md:text-[34px] font-extrabold text-white tracking-tight">
               Refunds and cancellation
             </h1>
-            <p className="text-[14px] text-[#737373] mt-1">
+            <p className="text-[14px] text-slate-400 mt-1">
               Last updated: {APP_CONFIG.lastUpdated}
             </p>
           </div>
 
-          <div className="flex flex-col gap-5 text-[16px] text-[#444444] leading-relaxed">
+          <div className="flex flex-col gap-5 text-[15px] sm:text-[16px] text-slate-200 leading-relaxed">
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Cancellation
               </h2>
               <p>
@@ -30,7 +30,7 @@ export default function RefundsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Refunds
               </h2>
               <p>
@@ -39,12 +39,12 @@ export default function RefundsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 How to ask for a refund
               </h2>
               <p>
                 To ask for a refund, email{' '}
-                <a href={`mailto:${APP_CONFIG.supportEmail}`} className="text-[#4f46e5] underline">
+                <a href={`mailto:${APP_CONFIG.supportEmail}`} className="text-[#00D2FF] hover:underline font-medium">
                   {APP_CONFIG.supportEmail}
                 </a>{' '}
                 from your account email. We reply within 2 working days.

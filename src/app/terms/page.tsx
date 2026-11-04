@@ -5,23 +5,23 @@ import { APP_CONFIG } from '@/lib/config';
 
 export default function TermsPage() {
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <div className="min-h-[100dvh] flex flex-col text-white bg-[#06070d]">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-[680px] mx-auto px-4 py-8 md:py-16">
-        <div className="solid-card p-6 sm:p-8 flex flex-col gap-6">
+      <main className="flex-1 w-full max-w-[720px] mx-auto px-4 py-8 md:py-16">
+        <div className="solid-card p-6 sm:p-8 flex flex-col gap-6 border border-white/15 bg-white/[0.04] shadow-apple-lg">
           <div>
-            <h1 className="text-[28px] md:text-[34px] font-bold text-[#111111]">
+            <h1 className="text-[28px] md:text-[34px] font-extrabold text-white tracking-tight">
               Terms of service
             </h1>
-            <p className="text-[14px] text-[#737373] mt-1">
+            <p className="text-[14px] text-slate-400 mt-1">
               Last updated: {APP_CONFIG.lastUpdated}
             </p>
           </div>
 
-          <div className="flex flex-col gap-5 text-[16px] text-[#444444] leading-relaxed">
+          <div className="flex flex-col gap-5 text-[15px] sm:text-[16px] text-slate-200 leading-relaxed">
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Using {APP_CONFIG.name}
               </h2>
               <p>
@@ -30,7 +30,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Your account
               </h2>
               <p>
@@ -39,7 +39,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Your content
               </h2>
               <p>
@@ -48,7 +48,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 What&apos;s not allowed
               </h2>
               <p>
@@ -57,7 +57,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Instagram&apos;s rules still apply
               </h2>
               <p>
@@ -66,7 +66,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Paid plans
               </h2>
               <p>
@@ -75,7 +75,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Cancelling
               </h2>
               <p>
@@ -84,7 +84,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Suspension
               </h2>
               <p>
@@ -93,7 +93,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 No guarantees
               </h2>
               <p>
@@ -102,7 +102,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Limit of liability
               </h2>
               <p>
@@ -111,7 +111,7 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Governing law
               </h2>
               <p>
@@ -120,12 +120,12 @@ export default function TermsPage() {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <h2 className="text-[18px] font-bold text-[#111111]">
+              <h2 className="text-[18px] font-bold text-white">
                 Contact
               </h2>
               <p>
                 For questions regarding these terms, write to{' '}
-                <a href={`mailto:${APP_CONFIG.supportEmail}`} className="text-[#4f46e5] underline">
+                <a href={`mailto:${APP_CONFIG.supportEmail}`} className="text-[#00D2FF] hover:underline font-medium">
                   {APP_CONFIG.supportEmail}
                 </a>.
               </p>
