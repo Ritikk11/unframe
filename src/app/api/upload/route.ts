@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOptionalRequestContext } from '@cloudflare/next-on-pages';
 import { getMetaConfig } from '@/lib/meta';
+import { stripAiAndInjectRealMetadata } from '@/lib/metadata-cleaner';
 
 export const runtime = 'edge';
 
@@ -13,9 +14,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const mime = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
-    const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : (mime.split('/')[1]?.replace('+xml', '') || 'jpg');
+    const rawBytes = await file.arrayBuffer();
+    // Strip all C2PA, XMP AI manifests, and inject authentic camera EXIF metadata
+    const sanitizedBytes = stripAiAndInjectRealMetadata(new Uint8Array(rawBytes));
+
+    const mime = 'image/jpeg';
+    const ext = 'jpg';
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
     const filename = `unframe-${Date.now()}.${ext}`;
 
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
     // 1. Primary: Store directly in private Cloudflare KV (auto-deleted in 1 hour)
     if (kv) {
       try {
-        await kv.put(mediaId, bytes, {
+        await kv.put(mediaId, sanitizedBytes, {
           metadata: {
             contentType: mime,
             filename,

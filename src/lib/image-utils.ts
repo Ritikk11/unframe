@@ -1,3 +1,5 @@
+import { stripAiAndInjectRealMetadata } from '@/lib/metadata-cleaner';
+
 export interface ImageMetadata {
   width: number;
   height: number;
@@ -81,17 +83,6 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
       let srcW = origW;
       let srcH = origH;
 
-      // If already JPEG and already safely inside [0.5625, 1.91], can return original
-      if (
-        typeof fileOrUrl !== 'string' &&
-        fileOrUrl instanceof File &&
-        fileOrUrl.type === 'image/jpeg' &&
-        ratio >= 0.5625 &&
-        ratio <= 1.91
-      ) {
-        return resolve(fileOrUrl);
-      }
-
       if (ratio < 0.5625) {
         // Taller than 9:16 limit (e.g. 748x1340 where ratio is 0.5582)
         // Clamp height to exact 9:16 (0.5626 ensures rounding margin safety for Meta)
@@ -125,15 +116,27 @@ export async function convertToOriginalJpeg(fileOrUrl: File | Blob | string): Pr
       ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, targetW, targetH);
 
       canvas.toBlob(
-        (blob) => {
+        async (blob) => {
           if (!blob) {
             if (fileOrUrl instanceof File) return resolve(fileOrUrl);
             return reject(new Error('Failed to convert to JPEG'));
           }
-          const jpegFile = new File([blob], `photo-${Date.now()}.jpg`, {
-            type: 'image/jpeg',
-          });
-          resolve(jpegFile);
+
+          try {
+            // Read raw bytes, strip all C2PA / AI markers, and inject authentic camera EXIF
+            const rawBytes = await blob.arrayBuffer();
+            const cleanBytes = stripAiAndInjectRealMetadata(new Uint8Array(rawBytes));
+            const cleanBlob = new Blob([cleanBytes.buffer as ArrayBuffer], { type: 'image/jpeg' });
+            const jpegFile = new File([cleanBlob], `photo-${Date.now()}.jpg`, {
+              type: 'image/jpeg',
+            });
+            resolve(jpegFile);
+          } catch {
+            const fallbackFile = new File([blob], `photo-${Date.now()}.jpg`, {
+              type: 'image/jpeg',
+            });
+            resolve(fallbackFile);
+          }
         },
         'image/jpeg',
         0.98
