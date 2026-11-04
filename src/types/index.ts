@@ -34,3 +34,16 @@ export interface PublishResult {
   error?: string;
 }
 
+export interface InstagramPost {
+  id: string;
+  caption?: string;
+  mediaType: string; // 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM'
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  permalink: string;
+  timestamp: string;
+  likeCount?: number;
+  commentsCount?: number;
+  children?: { id: string; mediaType: string; mediaUrl: string }[];
+}
+

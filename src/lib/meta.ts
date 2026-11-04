@@ -1,4 +1,4 @@
-import { InstagramAccount } from '@/types';
+import { InstagramAccount, InstagramPost } from '@/types';
 import { getOptionalRequestContext } from '@cloudflare/next-on-pages';
 
 const GRAPH_API_VERSION = 'v21.0';
@@ -243,5 +243,33 @@ export async function publishContainer(
   }
 
   return data;
+}
+
+export async function fetchAccountPosts(igUserId: string, accessToken: string): Promise<InstagramPost[]> {
+  const fields = 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count,children{id,media_type,media_url}';
+  const res = await fetch(`${GRAPH_BASE}/${igUserId}/media?fields=${fields}&access_token=${accessToken}&limit=30`);
+  const data = await res.json();
+
+  if (data.error) {
+    throw new Error(data.error.message || 'Failed to fetch Instagram posts');
+  }
+
+  const items = data.data || [];
+  return items.map((item: any) => ({
+    id: item.id,
+    caption: item.caption || '',
+    mediaType: item.media_type,
+    mediaUrl: item.media_url || item.thumbnail_url || '',
+    thumbnailUrl: item.thumbnail_url || item.media_url || '',
+    permalink: item.permalink || '',
+    timestamp: item.timestamp || '',
+    likeCount: item.like_count || 0,
+    commentsCount: item.comments_count || 0,
+    children: item.children?.data?.map((c: any) => ({
+      id: c.id,
+      mediaType: c.media_type,
+      mediaUrl: c.media_url,
+    })) || [],
+  }));
 }
 
