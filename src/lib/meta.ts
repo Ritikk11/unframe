@@ -88,7 +88,7 @@ export async function getLongLivedUserToken(shortLivedToken: string): Promise<st
   return data.access_token as string;
 }
 
-export async function fetchInstagramAccounts(userAccessToken: string): Promise<InstagramAccount[]> {
+export async function fetchInstagramAccounts(userAccessToken: string): Promise<{ accounts: InstagramAccount[]; pagesFound: string[] }> {
   const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}';
   const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${userAccessToken}`);
   const data = await res.json();
@@ -99,6 +99,7 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<I
 
   const pages = data.data || [];
   const accounts: InstagramAccount[] = [];
+  const pagesFound: string[] = pages.map((p: any) => p.name || p.id);
 
   for (const page of pages) {
     if (page.instagram_business_account) {
@@ -116,7 +117,7 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<I
     }
   }
 
-  return accounts;
+  return { accounts, pagesFound };
 }
 
 export async function createSingleMediaContainer(

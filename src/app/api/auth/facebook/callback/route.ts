@@ -27,14 +27,16 @@ export async function GET(req: NextRequest) {
     const longLivedToken = await getLongLivedUserToken(shortLivedToken);
 
     // 3. Fetch all Facebook Pages and linked Instagram Professional accounts
-    const accounts = await fetchInstagramAccounts(longLivedToken);
+    const { accounts, pagesFound } = await fetchInstagramAccounts(longLivedToken);
 
     if (accounts.length === 0) {
-      return NextResponse.redirect(
-        `${origin}${returnTo}?auth_error=${encodeURIComponent(
-          'No Instagram Professional accounts found. Make sure your Instagram account is set to Creator/Business and linked to a Facebook Page.'
-        )}`
-      );
+      let errorMsg = '';
+      if (pagesFound.length === 0) {
+        errorMsg = 'No Facebook Pages granted. When connecting, click "Edit Settings" and check all your Facebook Pages.';
+      } else {
+        errorMsg = `Found Facebook Page(s) "${pagesFound.join(', ')}", but no linked Instagram Professional account was detected. In Facebook, go to Page Settings -> Linked Accounts -> Instagram and ensure it is connected and set to Creator or Business.`;
+      }
+      return NextResponse.redirect(`${origin}${returnTo}?auth_error=${encodeURIComponent(errorMsg)}`);
     }
 
     // 4. Save accounts in a secure cookie
