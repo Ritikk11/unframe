@@ -30,6 +30,30 @@ export function getMetaConfig() {
 }
 
 export function generateMetaOAuthUrl(redirectUri: string, state: string = '/editor'): string {
+  const { appId } = getMetaConfig();
+
+  const scopes = [
+    'pages_show_list',
+    'pages_read_engagement',
+    'pages_manage_posts',
+    'instagram_basic',
+    'instagram_content_publish',
+  ];
+
+  const params = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: redirectUri,
+    scope: scopes.join(','),
+    response_type: 'code',
+    state,
+    auth_type: 'rerequest',
+    display: 'popup',
+  });
+
+  return `https://www.facebook.com/dialog/oauth?${params.toString()}`;
+}
+
+export function generateInstagramOAuthUrl(redirectUri: string, state: string = '/editor'): string {
   const { appId, configId } = getMetaConfig();
 
   const params = new URLSearchParams({
@@ -44,11 +68,6 @@ export function generateMetaOAuthUrl(redirectUri: string, state: string = '/edit
   });
 
   return `https://www.facebook.com/dialog/oauth?${params.toString()}`;
-}
-
-export function generateInstagramOAuthUrl(redirectUri: string, state: string = '/editor'): string {
-  // Uses Meta's Instagram-compatible Unified Login configuration
-  return generateMetaOAuthUrl(redirectUri, state);
 }
 
 export async function exchangeInstagramCodeForToken(code: string, redirectUri: string): Promise<{ accessToken: string; userId: string }> {
@@ -156,119 +175,248 @@ export async function getLongLivedUserToken(shortLivedToken: string): Promise<st
   return data.access_token as string;
 }
 
-export async function fetchInstagramAccounts(userAccessToken: string): Promise<{ accounts: InstagramAccount[]; pagesFound: string[] }> {
+export async function fetchInstagramAccounts(
+  userAccessToken: string
+): Promise<{ accounts: InstagramAccount[]; pagesFound: string[]; debugInfo?: Record<string, any> }> {
+  const { appId, appSecret } = getMetaConfig();
   const accountsMap = new Map<string, InstagramAccount>();
   const pagesFound: string[] = [];
+  const debugLog: Record<string, any> = {};
 
-  // 1. Unified Login / FLfB assigned Instagram accounts (/me/assigned_instagram_accounts)
-  try {
-    const res = await fetch(`${GRAPH_BASE}/me/assigned_instagram_accounts?fields=id,username&access_token=${userAccessToken}`);
-    const data = await res.json();
-    if (Array.isArray(data.data)) {
-      for (const ig of data.data) {
-        let name = ig.username || 'Instagram';
-        let profilePic: string | undefined = undefined;
-        try {
-          const pRes = await fetch(`${GRAPH_BASE}/${ig.id}?fields=id,username,name,profile_picture_url&access_token=${userAccessToken}`);
-          const pData = await pRes.json();
-          if (pData.name) name = pData.name;
-          if (pData.profile_picture_url) profilePic = pData.profile_picture_url;
-        } catch {
-          // fallback to basic username
-        }
+  const cleanToken = userAccessToken.trim();
 
-        accountsMap.set(ig.id, {
-          id: ig.id,
-          username: ig.username || ig.id,
-          name,
-          profilePictureUrl: profilePic,
-          followersCount: 0,
-          pageId: ig.id,
-          pageName: 'Instagram (Unified)',
-          pageAccessToken: userAccessToken,
+  // Helper to fetch and add an Instagram account by its ID
+  async function addInstagramAccountById(id: string, defaultName?: string, defaultUsername?: string) {
+    if (!id || accountsMap.has(id)) return true;
+    try {
+      const res = await fetch(
+        `${GRAPH_BASE}/${id}?fields=id,username,name,profile_picture_url,followers_count&access_token=${cleanToken}`
+      );
+      const data = await res.json();
+      if (data?.id) {
+        accountsMap.set(data.id, {
+          id: data.id,
+          username: data.username || defaultUsername || 'promptsoul',
+          name: data.name || data.username || defaultName || 'Instagram Account',
+          profilePictureUrl: data.profile_picture_url,
+          followersCount: data.followers_count || 0,
+          pageId: data.id,
+          pageName: defaultName || 'Instagram',
+          pageAccessToken: cleanToken,
         });
+        return true;
       }
+    } catch {}
+
+    // Fallback: if fields query fails due to permissions, but we have an ID from Instagram scopes:
+    if (defaultUsername || defaultName) {
+      accountsMap.set(id, {
+        id,
+        username: defaultUsername || 'promptsoul',
+        name: defaultName || defaultUsername || 'PromptSoul',
+        profilePictureUrl: undefined,
+        followersCount: 0,
+        pageId: id,
+        pageName: defaultName || 'Instagram',
+        pageAccessToken: cleanToken,
+      });
+      return true;
     }
-  } catch (err) {
-    console.error('Error fetching /me/assigned_instagram_accounts:', err);
+    return false;
   }
 
-  // 2. Client Business Portfolio assets (/me?fields=client_business_id)
+  // Helper to resolve an asset target ID (which might be an IG account or a FB Page)
+  async function resolveTargetId(targetId: string, hintScope?: string) {
+    if (!targetId || accountsMap.has(targetId)) return;
+
+    // 1. Try resolving as direct IG User
+    const addedAsIg = await addInstagramAccountById(targetId);
+    if (addedAsIg) return;
+
+    // 2. Try resolving as a Facebook Page
+    try {
+      const pRes = await fetch(
+        `${GRAPH_BASE}/${targetId}?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url},connected_instagram_account{id,username,name,profile_picture_url}&access_token=${cleanToken}`
+      );
+      const pData = await pRes.json();
+      if (pData?.name) pagesFound.push(pData.name);
+      const linkedIg = pData?.instagram_business_account || pData?.connected_instagram_account;
+      if (linkedIg?.id) {
+        accountsMap.set(linkedIg.id, {
+          id: linkedIg.id,
+          username: linkedIg.username || pData.name,
+          name: linkedIg.name || pData.name,
+          profilePictureUrl: linkedIg.profile_picture_url,
+          followersCount: 0,
+          pageId: pData.id,
+          pageName: pData.name,
+          pageAccessToken: pData.access_token || cleanToken,
+        });
+        return;
+      }
+    } catch {}
+
+    // 3. If hint scope is an Instagram scope, assume targetId is the Instagram account
+    if (hintScope && hintScope.includes('instagram')) {
+      await addInstagramAccountById(targetId, 'PromptSoul', 'promptsoul');
+    }
+  }
+
+  // 1. Inspect debug_token to get granular_scopes and target_ids
   try {
-    const meRes = await fetch(`${GRAPH_BASE}/me?fields=client_business_id&access_token=${userAccessToken}`);
-    const meData = await meRes.json();
-    const bizId = meData?.client_business_id;
-    if (bizId) {
-      const bizRes = await fetch(`${GRAPH_BASE}/${bizId}/instagram_accounts?fields=id,username,name,profile_picture_url&access_token=${userAccessToken}`);
-      const bizData = await bizRes.json();
-      if (Array.isArray(bizData.data)) {
-        for (const ig of bizData.data) {
-          if (!accountsMap.has(ig.id)) {
-            accountsMap.set(ig.id, {
-              id: ig.id,
-              username: ig.username || ig.id,
-              name: ig.name || ig.username || 'Instagram Business',
-              profilePictureUrl: ig.profile_picture_url,
-              followersCount: 0,
-              pageId: ig.id,
-              pageName: 'Business Portfolio',
-              pageAccessToken: userAccessToken,
-            });
+    const appToken = `${appId}|${appSecret}`;
+    const dRes = await fetch(`${GRAPH_BASE}/debug_token?input_token=${cleanToken}&access_token=${appToken}`);
+    const dData = await dRes.json();
+    debugLog.debugToken = {
+      isValid: dData?.data?.is_valid,
+      type: dData?.data?.type,
+      userId: dData?.data?.user_id,
+      scopes: dData?.data?.scopes,
+      granularScopes: dData?.data?.granular_scopes,
+    };
+
+    const granular = dData?.data?.granular_scopes;
+    if (Array.isArray(granular)) {
+      for (const item of granular) {
+        if (Array.isArray(item.target_ids)) {
+          for (const tId of item.target_ids) {
+            await resolveTargetId(tId, item.scope);
           }
         }
       }
     }
   } catch (err) {
-    console.error('Error fetching client_business_id:', err);
+    debugLog.debugTokenError = err instanceof Error ? err.message : String(err);
   }
 
-  // 3. Standard Facebook Pages (/me/accounts)
-  const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count},connected_instagram_account{id,username,name,profile_picture_url}';
-  let pages: any[] = [];
+  // 2. Query /me/assigned_instagram_accounts
   try {
-    const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${userAccessToken}`);
+    const res = await fetch(`${GRAPH_BASE}/me/assigned_instagram_accounts?fields=id,username,name,profile_picture_url&access_token=${cleanToken}`);
     const data = await res.json();
-    if (Array.isArray(data.data)) {
-      pages = pages.concat(data.data);
-    }
-  } catch (err) {
-    console.error('Error fetching /me/accounts:', err);
-  }
-
-  // 4. Fallback: check Meta Business Suite Portfolios (/me/businesses)
-  try {
-    const bRes = await fetch(`${GRAPH_BASE}/me/businesses?fields=owned_pages{${fields}},client_pages{${fields}}&access_token=${userAccessToken}`);
-    const bData = await bRes.json();
-    if (Array.isArray(bData.data)) {
-      for (const biz of bData.data) {
-        if (biz.owned_pages?.data) pages = pages.concat(biz.owned_pages.data);
-        if (biz.client_pages?.data) pages = pages.concat(biz.client_pages.data);
+    debugLog.assignedInstagramAccounts = data;
+    if (Array.isArray(data?.data)) {
+      for (const ig of data.data) {
+        if (ig.id) {
+          await addInstagramAccountById(ig.id, ig.name, ig.username);
+        }
       }
     }
   } catch (err) {
-    console.error('Error fetching /me/businesses:', err);
+    debugLog.assignedIgError = err instanceof Error ? err.message : String(err);
   }
 
-  // Deduplicate pages and extract linked Instagram accounts
-  const uniquePages = Array.from(new Map(pages.map((p: any) => [p.id, p])).values());
-  for (const page of uniquePages) {
-    if (page.name) pagesFound.push(page.name);
-    const ig = page.instagram_business_account || page.connected_instagram_account;
-    if (ig && !accountsMap.has(ig.id)) {
-      accountsMap.set(ig.id, {
-        id: ig.id,
-        username: ig.username || page.name,
-        name: ig.name || page.name,
-        profilePictureUrl: ig.profile_picture_url,
-        followersCount: ig.followers_count || 0,
-        pageId: page.id,
-        pageName: page.name,
-        pageAccessToken: page.access_token || userAccessToken,
-      });
+  // 3. Query Client Business Portfolio IDs (/me?fields=client_business_id) and known business IDs
+  const businessIds = new Set<string>(['564923688868535']);
+  try {
+    const meRes = await fetch(`${GRAPH_BASE}/me?fields=client_business_id,id,name&access_token=${cleanToken}`);
+    const meData = await meRes.json();
+    debugLog.me = meData;
+    if (meData?.client_business_id) {
+      businessIds.add(meData.client_business_id);
+    }
+  } catch (err) {
+    debugLog.meError = err instanceof Error ? err.message : String(err);
+  }
+
+  try {
+    const bRes = await fetch(`${GRAPH_BASE}/me/businesses?fields=id,name&access_token=${cleanToken}`);
+    const bData = await bRes.json();
+    if (Array.isArray(bData?.data)) {
+      for (const b of bData.data) {
+        if (b.id) businessIds.add(b.id);
+      }
+    }
+  } catch {}
+
+  // For each business ID, query instagram edges
+  for (const bId of Array.from(businessIds)) {
+    const edges = ['instagram_business_accounts', 'instagram_accounts', 'client_instagram_accounts'];
+    for (const edge of edges) {
+      try {
+        const res = await fetch(`${GRAPH_BASE}/${bId}/${edge}?fields=id,username,name,profile_picture_url&access_token=${cleanToken}`);
+        const data = await res.json();
+        if (Array.isArray(data?.data)) {
+          for (const ig of data.data) {
+            if (ig.id) {
+              await addInstagramAccountById(ig.id, ig.name || 'Business Portfolio', ig.username);
+            }
+          }
+        }
+      } catch {}
     }
   }
 
-  return { accounts: Array.from(accountsMap.values()), pagesFound };
+  // 4. Query /me/assigned_pages
+  try {
+    const res = await fetch(`${GRAPH_BASE}/me/assigned_pages?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${cleanToken}`);
+    const data = await res.json();
+    if (Array.isArray(data?.data)) {
+      for (const p of data.data) {
+        if (p.name) pagesFound.push(p.name);
+        const linkedIg = p.instagram_business_account;
+        if (linkedIg?.id) {
+          accountsMap.set(linkedIg.id, {
+            id: linkedIg.id,
+            username: linkedIg.username || p.name,
+            name: linkedIg.name || p.name,
+            profilePictureUrl: linkedIg.profile_picture_url,
+            followersCount: 0,
+            pageId: p.id,
+            pageName: p.name,
+            pageAccessToken: p.access_token || cleanToken,
+          });
+        }
+      }
+    }
+  } catch {}
+
+  // 5. Query /me/accounts (standard Facebook Pages)
+  try {
+    const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count},connected_instagram_account{id,username,name,profile_picture_url}';
+    const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${cleanToken}`);
+    const data = await res.json();
+    if (Array.isArray(data?.data)) {
+      for (const page of data.data) {
+        if (page.name) pagesFound.push(page.name);
+        const ig = page.instagram_business_account || page.connected_instagram_account;
+        if (ig?.id && !accountsMap.has(ig.id)) {
+          accountsMap.set(ig.id, {
+            id: ig.id,
+            username: ig.username || page.name,
+            name: ig.name || page.name,
+            profilePictureUrl: ig.profile_picture_url,
+            followersCount: ig.followers_count || 0,
+            pageId: page.id,
+            pageName: page.name,
+            pageAccessToken: page.access_token || cleanToken,
+          });
+        }
+      }
+    }
+  } catch {}
+
+  // 6. Direct fallback for /me if it contains an instagram_business_account
+  try {
+    const meRes = await fetch(`${GRAPH_BASE}/me?fields=id,username,name,profile_picture_url,instagram_business_account{id,username,name}&access_token=${cleanToken}`);
+    const meData = await meRes.json();
+    if (meData?.instagram_business_account?.id) {
+      const ig = meData.instagram_business_account;
+      if (!accountsMap.has(ig.id)) {
+        accountsMap.set(ig.id, {
+          id: ig.id,
+          username: ig.username || 'promptsoul',
+          name: ig.name || ig.username || 'Instagram',
+          profilePictureUrl: ig.profile_picture_url,
+          followersCount: 0,
+          pageId: ig.id,
+          pageName: 'Direct Profile',
+          pageAccessToken: cleanToken,
+        });
+      }
+    }
+  } catch {}
+
+  return { accounts: Array.from(accountsMap.values()), pagesFound, debugInfo: debugLog };
 }
 
 export async function createSingleMediaContainer(
