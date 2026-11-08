@@ -162,18 +162,29 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<{
 
   // 1. Unified Login / FLfB assigned Instagram accounts (/me/assigned_instagram_accounts)
   try {
-    const res = await fetch(`${GRAPH_BASE}/me/assigned_instagram_accounts?fields=id,username,name,profile_picture_url,followers_count&access_token=${userAccessToken}`);
+    const res = await fetch(`${GRAPH_BASE}/me/assigned_instagram_accounts?fields=id,username&access_token=${userAccessToken}`);
     const data = await res.json();
     if (Array.isArray(data.data)) {
       for (const ig of data.data) {
+        let name = ig.username || 'Instagram';
+        let profilePic: string | undefined = undefined;
+        try {
+          const pRes = await fetch(`${GRAPH_BASE}/${ig.id}?fields=id,username,name,profile_picture_url&access_token=${userAccessToken}`);
+          const pData = await pRes.json();
+          if (pData.name) name = pData.name;
+          if (pData.profile_picture_url) profilePic = pData.profile_picture_url;
+        } catch {
+          // fallback to basic username
+        }
+
         accountsMap.set(ig.id, {
           id: ig.id,
           username: ig.username || ig.id,
-          name: ig.name || ig.username || 'Instagram',
-          profilePictureUrl: ig.profile_picture_url,
-          followersCount: ig.followers_count || 0,
+          name,
+          profilePictureUrl: profilePic,
+          followersCount: 0,
           pageId: ig.id,
-          pageName: 'Instagram (Direct)',
+          pageName: 'Instagram (Unified)',
           pageAccessToken: userAccessToken,
         });
       }
