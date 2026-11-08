@@ -602,23 +602,23 @@ function EditorContent() {
                       Connect Instagram to publish
                     </span>
                     <span className="text-[13px] text-slate-400">
-                      Direct Instagram login. No Facebook Page required.
+                      Connect your Instagram Business or Creator account
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <a
-                      href="/api/auth/instagram"
+                      href="/api/auth/facebook"
                       className="btn-primary shrink-0 text-[13px] font-bold h-9 px-4 gap-1.5 rounded-full shadow-glow-primary bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] hover:opacity-95 text-white"
                     >
                       <InstagramIcon className="w-3.5 h-3.5" />
-                      <span>Log in with Instagram</span>
+                      <span>Connect with Instagram</span>
                     </a>
                     <a
-                      href="/api/auth/facebook"
+                      href="/api/auth/instagram"
                       className="text-slate-400 hover:text-white text-[11px] underline transition-colors"
-                      title="Connect via linked Facebook Pages"
+                      title="Unified Business Login (Alternative flow)"
                     >
-                      Via Facebook
+                      Unified Business Login
                     </a>
                   </div>
                 </div>

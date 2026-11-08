@@ -107,7 +107,7 @@ export default function Navbar({ connectedUsername, onConnect }: NavbarProps) {
               </button>
             ) : (
               <a
-                href="/api/auth/instagram"
+                href="/api/auth/facebook"
                 className="btn-primary h-10 px-5 text-[14px] gap-2 rounded-full shadow-glow-primary bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white hover:opacity-95"
               >
                 <InstagramIcon className="w-4 h-4" />
@@ -172,7 +172,7 @@ export default function Navbar({ connectedUsername, onConnect }: NavbarProps) {
                 </button>
               ) : (
                 <a
-                  href="/api/auth/instagram"
+                  href="/api/auth/facebook"
                   className="btn-primary w-full justify-center h-11 text-[14px] gap-2 rounded-full bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white hover:opacity-95"
                 >
                   <InstagramIcon className="w-4 h-4" />

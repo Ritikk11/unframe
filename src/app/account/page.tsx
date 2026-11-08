@@ -176,16 +176,16 @@ export default function AccountPage() {
               </span>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <a
-                  href="/api/auth/instagram"
+                  href="/api/auth/facebook"
                   className="btn-primary h-10 px-5 text-[13px] rounded-full shadow-glow-primary font-bold bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white hover:opacity-95"
                 >
-                  Log in with Instagram
+                  Connect with Instagram
                 </a>
                 <a
-                  href="/api/auth/facebook"
+                  href="/api/auth/instagram"
                   className="text-slate-400 hover:text-white text-[12px] underline"
                 >
-                  Via Facebook
+                  Unified Business Login
                 </a>
               </div>
             </div>
