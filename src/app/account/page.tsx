@@ -87,10 +87,10 @@ export default function AccountPage() {
             {allAccounts.length > 0 && (
               <div className="flex items-center gap-2">
                 <a
-                  href="/api/auth/facebook"
+                  href="/api/auth/instagram"
                   className="btn-secondary h-8 px-3 text-[12px] rounded-full text-slate-300 hover:text-white"
                 >
-                  Refresh / Add More
+                  + Add Instagram
                 </a>
                 <button
                   type="button"
@@ -174,12 +174,20 @@ export default function AccountPage() {
               <span className="text-[14px] text-slate-300">
                 No Instagram account connected yet.
               </span>
-              <a
-                href="/api/auth/facebook"
-                className="btn-primary h-10 px-5 text-[13px] rounded-full shadow-glow-primary font-bold"
-              >
-                Connect Instagram
-              </a>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <a
+                  href="/api/auth/instagram"
+                  className="btn-primary h-10 px-5 text-[13px] rounded-full shadow-glow-primary font-bold bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white hover:opacity-95"
+                >
+                  Log in with Instagram
+                </a>
+                <a
+                  href="/api/auth/facebook"
+                  className="text-slate-400 hover:text-white text-[12px] underline"
+                >
+                  Via Facebook
+                </a>
+              </div>
             </div>
           )}
         </div>

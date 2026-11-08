@@ -49,6 +49,91 @@ export function generateMetaOAuthUrl(redirectUri: string, state: string = 'auth_
   return `https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
 }
 
+export function generateInstagramOAuthUrl(redirectUri: string, state: string = '/editor'): string {
+  const { appId } = getMetaConfig();
+  const scopes = [
+    'instagram_business_basic',
+    'instagram_business_content_publish',
+  ].join(',');
+
+  const params = new URLSearchParams({
+    enable_fb_login: '0',
+    force_authentication: '1',
+    client_id: appId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: scopes,
+    state,
+  });
+
+  return `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+}
+
+export async function exchangeInstagramCodeForToken(code: string, redirectUri: string): Promise<{ accessToken: string; userId: string }> {
+  const { appId, appSecret } = getMetaConfig();
+  const cleanCode = code.replace(/#_$/, '');
+
+  const formData = new URLSearchParams({
+    client_id: appId,
+    client_secret: appSecret,
+    grant_type: 'authorization_code',
+    redirect_uri: redirectUri,
+    code: cleanCode,
+  });
+
+  const res = await fetch('https://api.instagram.com/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString(),
+  });
+  const data = await res.json();
+
+  if (data.error_message || data.error) {
+    throw new Error(data.error_message || data.error?.message || 'Failed to exchange Instagram authorization code');
+  }
+
+  return {
+    accessToken: data.access_token as string,
+    userId: String(data.user_id),
+  };
+}
+
+export async function getLongLivedInstagramToken(shortLivedToken: string): Promise<string> {
+  const { appSecret } = getMetaConfig();
+  const res = await fetch(
+    `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortLivedToken}`
+  );
+  const data = await res.json();
+
+  if (data.error) {
+    throw new Error(data.error.message || 'Failed to obtain long-lived Instagram token');
+  }
+
+  return data.access_token as string;
+}
+
+export async function fetchInstagramProfile(accessToken: string, userId: string): Promise<InstagramAccount> {
+  const res = await fetch(
+    `https://graph.instagram.com/v21.0/${userId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+  );
+  const data = await res.json();
+
+  if (data.error) {
+    throw new Error(data.error.message || 'Failed to fetch Instagram profile');
+  }
+
+  return {
+    id: data.id,
+    username: data.username || data.id,
+    name: data.name || data.username || 'Instagram User',
+    profilePictureUrl: data.profile_picture_url,
+    pageId: data.id,
+    pageName: 'Direct Instagram',
+    pageAccessToken: accessToken,
+    followersCount: 0,
+  };
+}
+
 export async function exchangeCodeForUserToken(code: string, redirectUri: string) {
   const { appId, appSecret } = getMetaConfig();
 

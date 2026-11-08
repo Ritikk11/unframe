@@ -34,6 +34,16 @@ import {
   Sliders,
 } from 'lucide-react';
 
+function InstagramIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
 function EditorContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -569,6 +579,14 @@ function EditorContent() {
                         <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       </div>
                     )}
+                    <a
+                      href="/api/auth/instagram"
+                      className="btn-secondary h-8 px-2.5 text-[11px] rounded-full text-slate-300 hover:text-white flex items-center gap-1"
+                      title="Connect another Instagram account"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add</span>
+                    </a>
                     <Link
                       href="/account"
                       className="btn-secondary h-8 px-3 text-[12px] rounded-full"
@@ -584,15 +602,25 @@ function EditorContent() {
                       Connect Instagram to publish
                     </span>
                     <span className="text-[13px] text-slate-400">
-                      You can still edit and preview full 9:16 posts before connecting.
+                      Direct Instagram login. No Facebook Page required.
                     </span>
                   </div>
-                  <a
-                    href="/api/auth/facebook"
-                    className="btn-primary shrink-0 text-[14px] h-10 px-5 gap-2 rounded-full shadow-glow-primary"
-                  >
-                    <span>Connect Instagram</span>
-                  </a>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <a
+                      href="/api/auth/instagram"
+                      className="btn-primary shrink-0 text-[13px] font-bold h-9 px-4 gap-1.5 rounded-full shadow-glow-primary bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] hover:opacity-95 text-white"
+                    >
+                      <InstagramIcon className="w-3.5 h-3.5" />
+                      <span>Log in with Instagram</span>
+                    </a>
+                    <a
+                      href="/api/auth/facebook"
+                      className="text-slate-400 hover:text-white text-[11px] underline transition-colors"
+                      title="Connect via linked Facebook Pages"
+                    >
+                      Via Facebook
+                    </a>
+                  </div>
                 </div>
               )}
             </div>

@@ -3,19 +3,22 @@ import { stripAiAndInjectRealMetadata } from '@/lib/metadata-cleaner';
 export interface PhotographicAdjustments {
   // Tone & Exposure
   exposure: number;    // -50 to +50 (default: 0)
-  brightness: number;  // -30 to +30 (default: 8)
-  contrast: number;    // -20 to +40 (default: 12)
-  highlights: number;  // -30 to +30 (default: 6)
+  brightness: number;  // -30 to +30 (default: 0)
+  contrast: number;    // -20 to +40 (default: 0)
+  highlights: number;  // -30 to +30 (default: 0)
 
   // White Balance & Color
   warmth: number;      // -50 (cool) to +50 (warm), default: 0 (neutral)
   tint: number;        // -50 (green) to +50 (magenta), default: 0
   saturation: number;  // -50 (muted) to +50 (vibrant), default: 0
 
-  // Optics & Texture
-  sharpness: number;   // 0 to 50 (default: 10)
-  smooth: number;      // 0 to 50 (default: 0)
-  grain: number;       // 0 to 50 (default: 12)
+  // Optics & Advanced Grain Engine
+  grain: number;          // 0 to 50 (default: 14)
+  grainSize: number;      // 1 (Fine 1px), 2 (Medium 35mm), 3 (Coarse 120mm)
+  grainRoughness: number; // 0 to 50 (organic silver halide clumping)
+  grainColor: boolean;    // false = Monochrome (0 color shift), true = Chroma sensor noise
+  sharpness: number;      // 0 to 50 (default: 0)
+  smooth: number;         // 0 to 50 (default: 0)
 
   // Boundary & Targeting
   borderCrop: number;  // 0 to 5% (default: 2.5%, cuts edge padding lines)
@@ -30,9 +33,12 @@ export const DEFAULT_ADJUSTMENTS: PhotographicAdjustments = {
   warmth: 0,
   tint: 0,
   saturation: 0,
+  grain: 14,
+  grainSize: 1,
+  grainRoughness: 0,
+  grainColor: false,
   sharpness: 0,
   smooth: 0,
-  grain: 14,
   borderCrop: 2.5,
   targetHotspots: true,
 };
