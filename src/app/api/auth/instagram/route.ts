@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   const origin = req.nextUrl.origin || appUrl;
-  const redirectUri = `${origin}/api/auth/instagram/callback`;
+  const redirectUri = `${origin}/api/auth/facebook/callback`;
   const returnTo = req.nextUrl.searchParams.get('return_to') || '/editor';
   const oauthUrl = generateInstagramOAuthUrl(redirectUri, returnTo);
 

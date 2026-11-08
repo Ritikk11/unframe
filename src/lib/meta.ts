@@ -15,58 +15,40 @@ export function getMetaConfig() {
     // fallback outside cloudflare context
   }
 
-  const appId = (cfEnv.META_APP_ID || process.env.META_APP_ID || cfEnv.NEXT_PUBLIC_META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || '') as string;
+  const appId = (cfEnv.META_APP_ID || process.env.META_APP_ID || cfEnv.NEXT_PUBLIC_META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || '2340318736800215') as string;
+  const configId = (cfEnv.META_CONFIG_ID || process.env.META_CONFIG_ID || '1852360689097177') as string;
   const appSecret = (cfEnv.META_APP_SECRET || process.env.META_APP_SECRET || '') as string;
   const appUrl = (cfEnv.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://unframe-7hl.pages.dev') as string;
 
   return {
     appId,
+    configId,
     appSecret,
     appUrl,
-    isConfigured: Boolean(appId && appSecret),
+    isConfigured: Boolean(appId && (appSecret || configId)),
   };
 }
 
-export function generateMetaOAuthUrl(redirectUri: string, state: string = 'auth_init'): string {
-  const { appId } = getMetaConfig();
-  const scopes = [
-    'public_profile',
-    'pages_show_list',
-    'pages_read_engagement',
-    'instagram_basic',
-    'instagram_content_publish',
-    'business_management'
-  ].join(',');
+export function generateMetaOAuthUrl(redirectUri: string, state: string = '/editor'): string {
+  const { appId, configId } = getMetaConfig();
 
   const params = new URLSearchParams({
     client_id: appId,
+    config_id: configId,
+    display: 'popup',
+    override_default_response_type: 'true',
     redirect_uri: redirectUri,
-    state,
-    scope: scopes,
     response_type: 'code',
+    state,
+    prompt: 'login',
   });
 
-  return `https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
+  return `https://www.facebook.com/dialog/oauth?${params.toString()}`;
 }
 
 export function generateInstagramOAuthUrl(redirectUri: string, state: string = '/editor'): string {
-  const { appId } = getMetaConfig();
-  const scopes = [
-    'instagram_business_basic',
-    'instagram_business_content_publish',
-  ].join(',');
-
-  const params = new URLSearchParams({
-    enable_fb_login: '0',
-    force_authentication: '1',
-    client_id: appId,
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: scopes,
-    state,
-  });
-
-  return `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+  // Uses Meta's Instagram-compatible Unified Login configuration
+  return generateMetaOAuthUrl(redirectUri, state);
 }
 
 export async function exchangeInstagramCodeForToken(code: string, redirectUri: string): Promise<{ accessToken: string; userId: string }> {
@@ -175,9 +157,62 @@ export async function getLongLivedUserToken(shortLivedToken: string): Promise<st
 }
 
 export async function fetchInstagramAccounts(userAccessToken: string): Promise<{ accounts: InstagramAccount[]; pagesFound: string[] }> {
-  const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count},connected_instagram_account{id,username,name,profile_picture_url}';
+  const accountsMap = new Map<string, InstagramAccount>();
+  const pagesFound: string[] = [];
 
-  // 1. Fetch standard /me/accounts
+  // 1. Unified Login / FLfB assigned Instagram accounts (/me/assigned_instagram_accounts)
+  try {
+    const res = await fetch(`${GRAPH_BASE}/me/assigned_instagram_accounts?fields=id,username,name,profile_picture_url,followers_count&access_token=${userAccessToken}`);
+    const data = await res.json();
+    if (Array.isArray(data.data)) {
+      for (const ig of data.data) {
+        accountsMap.set(ig.id, {
+          id: ig.id,
+          username: ig.username || ig.id,
+          name: ig.name || ig.username || 'Instagram',
+          profilePictureUrl: ig.profile_picture_url,
+          followersCount: ig.followers_count || 0,
+          pageId: ig.id,
+          pageName: 'Instagram (Direct)',
+          pageAccessToken: userAccessToken,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching /me/assigned_instagram_accounts:', err);
+  }
+
+  // 2. Client Business Portfolio assets (/me?fields=client_business_id)
+  try {
+    const meRes = await fetch(`${GRAPH_BASE}/me?fields=client_business_id&access_token=${userAccessToken}`);
+    const meData = await meRes.json();
+    const bizId = meData?.client_business_id;
+    if (bizId) {
+      const bizRes = await fetch(`${GRAPH_BASE}/${bizId}/instagram_accounts?fields=id,username,name,profile_picture_url&access_token=${userAccessToken}`);
+      const bizData = await bizRes.json();
+      if (Array.isArray(bizData.data)) {
+        for (const ig of bizData.data) {
+          if (!accountsMap.has(ig.id)) {
+            accountsMap.set(ig.id, {
+              id: ig.id,
+              username: ig.username || ig.id,
+              name: ig.name || ig.username || 'Instagram Business',
+              profilePictureUrl: ig.profile_picture_url,
+              followersCount: 0,
+              pageId: ig.id,
+              pageName: 'Business Portfolio',
+              pageAccessToken: userAccessToken,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching client_business_id:', err);
+  }
+
+  // 3. Standard Facebook Pages (/me/accounts)
+  const fields = 'id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count},connected_instagram_account{id,username,name,profile_picture_url}';
   let pages: any[] = [];
   try {
     const res = await fetch(`${GRAPH_BASE}/me/accounts?fields=${fields}&access_token=${userAccessToken}`);
@@ -189,7 +224,7 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<{
     console.error('Error fetching /me/accounts:', err);
   }
 
-  // 2. Fallback: check Meta Business Suite Portfolios (/me/businesses) if Page is business-managed
+  // 4. Fallback: check Meta Business Suite Portfolios (/me/businesses)
   try {
     const bRes = await fetch(`${GRAPH_BASE}/me/businesses?fields=owned_pages{${fields}},client_pages{${fields}}&access_token=${userAccessToken}`);
     const bData = await bRes.json();
@@ -203,15 +238,13 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<{
     console.error('Error fetching /me/businesses:', err);
   }
 
-  // Deduplicate pages by id
+  // Deduplicate pages and extract linked Instagram accounts
   const uniquePages = Array.from(new Map(pages.map((p: any) => [p.id, p])).values());
-  const accounts: InstagramAccount[] = [];
-  const pagesFound: string[] = uniquePages.map((p: any) => p.name || p.id);
-
   for (const page of uniquePages) {
+    if (page.name) pagesFound.push(page.name);
     const ig = page.instagram_business_account || page.connected_instagram_account;
-    if (ig) {
-      accounts.push({
+    if (ig && !accountsMap.has(ig.id)) {
+      accountsMap.set(ig.id, {
         id: ig.id,
         username: ig.username || page.name,
         name: ig.name || page.name,
@@ -219,12 +252,12 @@ export async function fetchInstagramAccounts(userAccessToken: string): Promise<{
         followersCount: ig.followers_count || 0,
         pageId: page.id,
         pageName: page.name,
-        pageAccessToken: page.access_token,
+        pageAccessToken: page.access_token || userAccessToken,
       });
     }
   }
 
-  return { accounts, pagesFound };
+  return { accounts: Array.from(accountsMap.values()), pagesFound };
 }
 
 export async function createSingleMediaContainer(

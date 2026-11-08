@@ -32,16 +32,33 @@ export async function GET(req: NextRequest) {
     if (accounts.length === 0) {
       let errorMsg = '';
       if (pagesFound.length === 0) {
-        errorMsg = 'No Facebook Pages granted. When connecting, click "Edit Settings" and check all your Facebook Pages.';
+        errorMsg = 'No Instagram account granted. When connecting, ensure you select your Instagram account and click Allow.';
       } else {
-        errorMsg = `Found Facebook Page(s) "${pagesFound.join(', ')}", but no linked Instagram Professional account was detected. In Facebook, go to Page Settings -> Linked Accounts -> Instagram and ensure it is connected and set to Creator or Business.`;
+        errorMsg = `Found Facebook Page(s) "${pagesFound.join(', ')}", but no linked Instagram account was detected. Ensure your Instagram account is set to Creator or Business in Instagram app settings.`;
       }
       return NextResponse.redirect(`${origin}${returnTo}?auth_error=${encodeURIComponent(errorMsg)}`);
     }
 
-    // 4. Save accounts in a secure cookie
+    // 4. Merge with existing connected accounts (multi-account support)
+    const sessionCookie = req.cookies.get('ig_accounts_session');
+    let existingAccounts: typeof accounts = [];
+    if (sessionCookie?.value) {
+      try {
+        existingAccounts = JSON.parse(sessionCookie.value);
+      } catch {
+        existingAccounts = [];
+      }
+    }
+
+    const newIds = new Set(accounts.map((a) => a.id));
+    const mergedAccounts = [
+      ...existingAccounts.filter((a) => !newIds.has(a.id)),
+      ...accounts,
+    ];
+
+    // 5. Save accounts in a secure cookie
     const response = NextResponse.redirect(`${origin}${returnTo}?auth=success`);
-    response.cookies.set('ig_accounts_session', JSON.stringify(accounts), {
+    response.cookies.set('ig_accounts_session', JSON.stringify(mergedAccounts), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
